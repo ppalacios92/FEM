@@ -1,19 +1,28 @@
-# 🎈 Blank app template
+# 🎯 QUAD4 Shape Function Visualizer
 
-A simple Streamlit app template for you to modify!
+An interactive Streamlit app to visualize the shape functions (N₀ to N₃) of a 4-node quadrilateral (QUAD4) finite element.  
+Developed by Patricio Palacios for educational and research purposes in finite element method (FEM) applications.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+🔗 **Live demo**: [quad4fem.streamlit.app](https://quad4fem.streamlit.app/)
 
-### How to run it on your own machine
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://quad4fem.streamlit.app/)
 
-1. Install the requirements
+---
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+### 🧩 Features
 
-2. Run the app
+- 2D contour plots of each shape function.
+- 3D surface plots of the functions \( N_0(\xi,\eta) \) to \( N_3(\xi,\eta) \).
+- Automatic layout using Matplotlib and NumPy.
+- Educational tool for structural engineers and FEM students.
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+---
+
+### 🚀 Run locally
+
+1. **Clone the repository** or copy the script
+
+2. **Install the requirements**
+
+   ```bash
+   pip install -r requirements.txt
