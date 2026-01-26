@@ -32,4 +32,11 @@ from .utils.functions import (
     get_line_load_global_vector
 )
 
+# Visualization utilities
+from .utils.visualization import (
+    add_element_data_view,
+    add_node_data_view,
+    compute_nodal_average
+)
+
 __version__ = "0.1.0"
