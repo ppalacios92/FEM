@@ -21,8 +21,8 @@ from .elements.CST import CST
 from .elements.LST import LST
 from .elements.Truss2D import Truss2D
 from .elements.Frame2D import Frame2D
-from .elements.quad4 import Quad4
-from .elements.quad9_1 import Quad9
+from .elements.Quad4 import Quad4
+from .elements.Quad9 import Quad9
 
 # Utilities
 from .utils.functions import (

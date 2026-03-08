@@ -75,7 +75,7 @@ class LST:
         Returns:
             xy (np.ndarray): 6x2 array with node coordinates [[x1, y1], [x2, y2], ..., [x6, y6]]
         """
-        xy = np.array([node.coordenadas for node in self.nodes])
+        xy = np.array([node.coordinates for node in self.nodes])
         return xy
     
     @staticmethod
@@ -146,12 +146,12 @@ class LST:
         nDof = self.nDof
         nDof_element = len(self.node_list) * nDof
         
-        vector_coordenadas = np.zeros((nDof_element, 1))
-        vector_coordenadas[0::2, 0] = self.xy[:, 0]
-        vector_coordenadas[1::2, 0] = self.xy[:, 1]
+        vector_coordinates = np.zeros((nDof_element, 1))
+        vector_coordinates[0::2, 0] = self.xy[:, 0]
+        vector_coordinates[1::2, 0] = self.xy[:, 1]
         
-        coordenadas_cartesianas = np.dot(N, vector_coordenadas)
-        return coordenadas_cartesianas
+        coordinates_cartesianas = np.dot(N, vector_coordinates)
+        return coordinates_cartesianas
     
     def get_B_matrix(self, zeta, eta):
         """

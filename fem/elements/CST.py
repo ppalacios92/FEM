@@ -57,7 +57,7 @@ class CST:
         Returns:
             X (np.ndarray): 3x2 array with node coordinates [[x1, y1], [x2, y2], [x3, y3]]
         """
-        xy = np.array([node.coordenadas for node in self.nodes])
+        xy = np.array([node.coordinates for node in self.nodes])
         return xy
 
     def get_centroid(self):
@@ -79,9 +79,9 @@ class CST:
         Sets:
             self.area (float): Area of the triangle
         """
-        x1, y1 = self.nodes[0].coordenadas
-        x2, y2 = self.nodes[1].coordenadas
-        x3, y3 = self.nodes[2].coordenadas
+        x1, y1 = self.nodes[0].coordinates
+        x2, y2 = self.nodes[1].coordinates
+        x3, y3 = self.nodes[2].coordinates
 
         self.area = 0.5 * np.linalg.det(np.array([
             [1, x1, y1],
@@ -131,9 +131,9 @@ class CST:
         Returns:
             B (3x6 np.ndarray): Strain-displacement matrix
         """
-        x1, y1 = self.nodes[0].coordenadas
-        x2, y2 = self.nodes[1].coordenadas
-        x3, y3 = self.nodes[2].coordenadas
+        x1, y1 = self.nodes[0].coordinates
+        x2, y2 = self.nodes[1].coordinates
+        x3, y3 = self.nodes[2].coordinates
 
         b1 = y2 - y3
         b2 = y3 - y1

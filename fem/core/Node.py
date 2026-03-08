@@ -2,79 +2,177 @@ import numpy as np
 import matplotlib.pyplot as plt
 from fem.core.parameters import globalParameters
 
+
 class Node:
-    def __init__(self, name, coordenadas, nodalLoad=None, restrain=None, printSummary=False):
-        # This is a dict defined in the main file to store the global parameters
-        global Global
-        
-        self.name = name
-        self.coordenadas = np.array(coordenadas)
-        
-        # Get the indices for the node, python count from 0
-        self.idx=self._indices()
-        
-        # Define the nodal load during the instantiation
-        if nodalLoad is not None:
-            self.nodalLoad = np.array(nodalLoad)
+    """
+    2D structural node for the Direct Stiffness Method (DSM).
+
+    Each node is assigned a set of global DOF indices based on its name
+    and the number of DOFs per node defined in globalParameters['nDoF'].
+
+    DOF assignment (plain numbering)
+    ---------------------------------
+    Node name n  →  global DOFs  [nDoF*n,  nDoF*n+1,  ...,  nDoF*(n+1)-1]
+
+    Nodes are 0-based: the first node must be named 0.
+
+    For nDoF = 2  (truss / continuum):   [u, v]
+    For nDoF = 3  (frame):               [u, v, theta]
+
+    Restraint convention
+    --------------------
+    'f'  →  free DOF        (unknown displacement, known applied force)
+    'r'  →  restrained DOF  (prescribed displacement = 0, unknown reaction)
+    """
+
+    
+    # Constructor
+    
+
+    def __init__(self, name: int, coordinates: list,
+                 nodal_load: list = None,
+                 restrain: list = None,
+                 print_summary: bool = False):
+        """
+        Parameters
+        ----------
+        name          : int   Node number (0-based).
+        coordinates   : list  [x, y] position in global frame.
+        nodal_load    : list  Applied nodal load, length = nDoF. Default: zeros.
+        restrain      : list  BC flags, length = nDoF. Each entry 'f' or 'r'.
+                              Default: all free.
+        print_summary : bool  Print node summary on creation.
+        """
+        nDoF = globalParameters['nDoF']
+
+        self.name        = name
+        self.coordinates = np.array(coordinates, dtype=float)
+
+        # ── Global DOF indices ─────────────────────────────────────────────
+        self.idx = self._compute_indices()
+
+        # ── Nodal load ─────────────────────────────────────────────────────
+        if nodal_load is not None:
+            if len(nodal_load) != nDoF:
+                raise ValueError(
+                    f"nodal_load must have length {nDoF}, got {len(nodal_load)}."
+                )
+            self.nodalLoad = np.array(nodal_load, dtype=float)
         else:
-            self.nodalLoad = np.zeros(globalParameters['nDoF'])
-            
-        # Define the boundary conditions
-        
+            self.nodalLoad = np.zeros(nDoF)
+
+        # ── Boundary conditions ────────────────────────────────────────────
         if restrain is not None:
-            if isinstance(restrain, list) and len(restrain)==globalParameters['nDoF']:
-                self.restrain = np.array(restrain)
-            else:
-                raise ValueError('Las restricciones deben ser una lista y tener el tamaño correcto')
+            if len(restrain) != nDoF:
+                raise ValueError(
+                    f"restrain must have length {nDoF}, got {len(restrain)}."
+                )
+            if not all(r in ('f', 'r') for r in restrain):
+                raise ValueError(
+                    "restrain entries must be 'f' (free) or 'r' (restrained)."
+                )
+            self.restrain = np.array(restrain)
         else:
-            self.restrain=np.full(globalParameters['nDoF'],'f')
-            
-        if printSummary:
-            self.printSummary()
+            self.restrain = np.full(nDoF, 'f')
+
+        if print_summary:
+            self.print_summary()
+
     
+    # String representation
+    
+
     def __str__(self):
-        return "Node %d at %s" % (self.name, self.coordenadas)
-    
+        return f"Node {self.name} at {self.coordinates}"
+
     def __repr__(self):
         return self.__str__()
+
     
-    def set_restrain(self, restrain:list):
-        restrain = np.array(restrain)
-        
-        if restrain.shape[0] != globalParameters['nDoF']:
-            raise ValueError('Las restricciones deben tener el tamaño correcto')
-        
-        if not np.all(np.isin(restrain, ['f', 'r'])):
-            raise ValueError("Las restricciones solo pueden ser 'f' (free) o 'r' (restrained)")
-        
-        self.restrain = restrain
+    # DOF index computation
+    
 
-        
-    def set_nodalLoad(self, nodalLoad):
-        if isinstance(nodalLoad, list) and len(nodalLoad)==globalParameters['nDoF']:
-            self.nodalLoad = np.array(nodalLoad)
-        else:
-            raise ValueError('La carga nodal debe ser una lista y tener el tamaño correcto')
-        
-    def _indices(self):
-        idx = np.arange(globalParameters['nDoF']) + (globalParameters['nDoF'] * (self.name-1)).astype(int)
-        return idx
+    def _compute_indices(self) -> np.ndarray:
+        """
+        Compute the global DOF indices for this node.
 
-    def plotGeometry(self, ax=None, text=False):
+        Node naming is 0-based:
+            node 0  →  DOFs [0, 1, 2]
+            node 1  →  DOFs [3, 4, 5]
+            node n  →  DOFs [nDoF*n, ..., nDoF*(n+1)-1]
+
+        Returns
+        -------
+        idx : np.ndarray (nDoF,)
+        """
+        nDoF = globalParameters['nDoF']
+        return np.arange(nDoF) + int(nDoF * self.name)
+
+    
+    # Setters
+    
+
+    def set_restrain(self, restrain: list):
+        """Set or update the boundary condition flags."""
+        nDoF = globalParameters['nDoF']
+        if len(restrain) != nDoF:
+            raise ValueError(
+                f"restrain must have length {nDoF}, got {len(restrain)}."
+            )
+        if not all(r in ('f', 'r') for r in restrain):
+            raise ValueError(
+                "restrain entries must be 'f' (free) or 'r' (restrained)."
+            )
+        self.restrain = np.array(restrain)
+
+    def set_nodal_load(self, nodal_load: list):
+        """Set or update the nodal load vector."""
+        nDoF = globalParameters['nDoF']
+        if len(nodal_load) != nDoF:
+            raise ValueError(
+                f"nodal_load must have length {nDoF}, got {len(nodal_load)}."
+            )
+        self.nodalLoad = np.array(nodal_load, dtype=float)
+
+    
+    # Plotting
+    
+
+    def plotGeometry(self, ax=None, text: bool = False,
+                     color: str = 'tomato', markersize: int = 6):
+        """Plot the node position on a matplotlib axis."""
         if ax is None:
-            fig, ax = plt.subplots()
-        ax.plot(self.coordenadas[0], self.coordenadas[1], 'ro')
+            _, ax = plt.subplots()
+        ax.plot(self.coordinates[0], self.coordinates[1],
+                'o', color=color, markersize=markersize, zorder=5)
         if text:
-            ax.text(self.coordenadas[0], self.coordenadas[1], f'{self.name}', fontsize=8)
+            ax.text(self.coordinates[0], self.coordinates[1],
+                    f'  {self.name}', fontsize=9, va='center')
         return ax
-    
-    def printSummary(self):
-        print(f'--------------------------------------------')
-        print("Node %d at %s" % (self.name, self.coordenadas))
-        print("Indices: ", self.idx)
-        print("Nodal Load: ", self.nodalLoad)
-        print("Restrain: ", self.restrain)
-        print(f'--------------------------------------------\n')
-         
 
     
+    # Summary
+    
+
+    def print_summary(self):
+        """Print a formatted summary of the node properties."""
+        sep = '─' * 48
+        print(sep)
+        print(f"Node {self.name}")
+        print(f"  Coordinates : {self.coordinates}")
+        print(f"  DOF indices : {self.idx}")
+        print(f"  Nodal load  : {self.nodalLoad}")
+        print(f"  Restraints  : {self.restrain}")
+        print(sep + '\n')
+
+    
+    # Backwards compatibility aliases
+    
+
+    def printSummary(self):
+        """Alias for print_summary() — kept for backwards compatibility."""
+        self.print_summary()
+
+    def set_nodalLoad(self, nodal_load: list):
+        """Alias for set_nodal_load() — kept for backwards compatibility."""
+        self.set_nodal_load(nodal_load)

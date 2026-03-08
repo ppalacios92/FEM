@@ -76,7 +76,7 @@ class Quad4:
         Returns:
             X (np.ndarray): 4x2 array with node coordinates [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
         """
-        xy = np.array([node.coordenadas for node in self.nodes])
+        xy = np.array([node.coordinates for node in self.nodes])
         return xy
     
     @staticmethod
@@ -101,7 +101,7 @@ class Quad4:
         N3=((1+eta)*(1+zeta))/4
         N4=((1+eta)*(1-zeta))/4
         
-        # Derivadas parciales de las funciones de interpolacion en funcion de las coordenadas naturales
+        # Derivadas parciales de las funciones de interpolacion en funcion de las coordinates naturales
         dN1dzeta = -0.25 * (1 - eta)
         dN2dzeta =  0.25 * (1 - eta)
         dN3dzeta =  0.25 * (1 + eta)
@@ -132,12 +132,12 @@ class Quad4:
         nDof=self.nDof
         nDof_element=len(self.node_list)*nDof
         
-        vector_coordenadas=np.zeros((nDof_element,1))
-        vector_coordenadas[0::2,0]=self.xy[:,0]
-        vector_coordenadas[1::2,0]=self.xy[:,1]
+        vector_coordinates=np.zeros((nDof_element,1))
+        vector_coordinates[0::2,0]=self.xy[:,0]
+        vector_coordinates[1::2,0]=self.xy[:,1]
         
-        coordenadas_cartesianas=np.dot(N,vector_coordenadas)
-        return coordenadas_cartesianas
+        coordinates_cartesianas=np.dot(N,vector_coordinates)
+        return coordinates_cartesianas
     
     def get_B_matrix(self,zeta,eta):
         """
@@ -158,7 +158,7 @@ class Quad4:
             
         """
         
-        # Determinamos la matriz de coordenadas xy
+        # Determinamos la matriz de coordinates xy
         xy=self.xy
         
         # Funciones de interpolacion N(zeta, eta)
