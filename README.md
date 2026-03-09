@@ -99,7 +99,7 @@ node_map, nodes = build_nodes_from_gmsh('mesh.msh', restrain_dictionary=restrain
 elements        = create_elements_from_gmsh('mesh.msh', node_map, section_dictionary, {4: Quad4})
 
 # Assembly and solve
-# ... (see examples/ for full workflows)
+# ..(see examples/ for full workflows)
 ```
 
 ---
