@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import matplotlib.patches as mpatches
 
 
@@ -398,6 +399,19 @@ class Frame2D:
     # Plotting
     # --------------------------------------------------------------------------
 
+    def _draw_support(self, ax, node, color='mediumpurple', size=10):
+        x, y  = node.coordinates[0], node.coordinates[1]
+        restr = list(node.restrain)
+        if restr == ['r', 'r', 'r']:
+            ax.plot(x, y, 's', color=color,     markersize=size, zorder=4)
+        elif restr == ['r', 'r', 'f']:
+            ax.plot(x, y, '^', color=color,     markersize=size, zorder=4)
+        elif 'r' in restr:
+            ax.plot(x, y, 'o', color=color,     markersize=size, zorder=4)
+        else:
+            ax.plot(x, y, 'o', color='tab:red', markersize=size/2, zorder=4)
+
+
     def plot_geometry(self, ax=None, show_nodes: bool = True,
                       node_labels: bool = False, element_label: bool = False,
                       color: str = 'k', lw: float = 2.0):
@@ -410,8 +424,11 @@ class Frame2D:
         ax.plot([xi[0], xj[0]], [xi[1], xj[1]], color=color, lw=lw)
 
         if show_nodes:
-            self.node_i.plotGeometry(ax, text=node_labels)
-            self.node_j.plotGeometry(ax, text=node_labels)
+            self._draw_support(ax, self.node_i)
+            self._draw_support(ax, self.node_j)
+            # self.node_i.plotGeometry(ax, text=node_labels)
+            # self.node_j.plotGeometry(ax, text=node_labels)
+
 
         if element_label:
             xm = 0.5 * (xi + xj)
@@ -489,6 +506,7 @@ class Frame2D:
 
         ax.plot(x_base, y_base, 'k-', lw=1)
         ax.plot(x_diag, y_diag, color=color, lw=1.5)
+        
 
         if fill:
             ax.fill(
@@ -497,8 +515,8 @@ class Frame2D:
                 color=color, alpha=0.25
             )
 
-        ax.text(x_diag[0],  y_diag[0],  f'{values[0]:.2f}',  fontsize=7)
-        ax.text(x_diag[-1], y_diag[-1], f'{values[-1]:.2f}', fontsize=7)
+        ax.text(x_diag[0],  y_diag[0],  f'{values[0]/scale:.2f}',  fontsize=7)
+        ax.text(x_diag[-1], y_diag[-1], f'{values[-1]/scale:.2f}', fontsize=7)
         ax.grid(False)
 
         return ax

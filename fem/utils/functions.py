@@ -81,28 +81,6 @@ def _apply_restraints(node_map, restrain_dictionary):
             node_map[tag].set_restrain(restrain_dictionary[phys_id])
 
 
-def _apply_nodal_loads(node_map, load_dictionary):
-    """
-    Apply nodal loads [Fx, Fy] to nodes belonging to each physical group.
-
-    Parameters
-    ----------
-    node_map        : dict  {gmsh_tag: Node}
-    load_dictionary : dict  {phys_id: [Fx, Fy]}
-    """
-    for dim, phys_id in gmsh.model.getPhysicalGroups():
-        if phys_id not in load_dictionary:
-            continue
-        entity_tags = gmsh.model.getEntitiesForPhysicalGroup(dim, phys_id)
-        node_tags_in_group = set()
-        for ent_tag in entity_tags:
-            _, _, elem_node_tags = gmsh.model.mesh.getElements(dim, ent_tag)
-            for arr in elem_node_tags:
-                node_tags_in_group.update(arr)
-        for tag in node_tags_in_group:
-            node_map[tag].set_nodal_load(load_dictionary[phys_id])
-
-
 def build_nodes_from_gmsh(output_file, restrain_dictionary=None):
     """
     Read a gmsh mesh file and return fully configured Node objects.
@@ -293,17 +271,33 @@ def build_load_vector(output_file, node_map, load_dictionary, system_nDof):
                         F[node_map[tag].idx] += load_value * d
 
         elif dim == 1:
-            # Line load — consistent nodal forces
             for ent_tag in entity_tags:
-                elem_types, elem_tags_list, node_tags_list = gmsh.model.mesh.getElements(dim, ent_tag)
-                for elem_type, elem_tags, elem_node_tags in zip(elem_types, elem_tags_list, node_tags_list):
-                    num_nodes = len(elem_node_tags) // len(elem_tags)
-                    for i in range(len(elem_tags)):
-                        tag_subset = elem_node_tags[i * num_nodes : (i + 1) * num_nodes]
-                        node_list  = [node_map[t] for t in tag_subset]
-                        f_scalar   = _consistent_line_load(node_list, load_value)
-                        for node, f in zip(node_list, f_scalar):
-                            F[node.idx] += f * d
+                # Get ALL nodes including boundary corners
+                node_tags_line, coords, _ = gmsh.model.mesh.getNodes(dim, ent_tag, includeBoundary=True)
+                coords = coords.reshape(-1, 3)[:, :2]
+
+                # Sort along the dominant axis
+                delta    = coords[-1] - coords[0]
+                axis     = 0 if abs(delta[0]) > abs(delta[1]) else 1
+                sort_idx = np.argsort(coords[:, axis])
+
+                node_tags_sorted = node_tags_line[sort_idx]
+                coords_sorted    = coords[sort_idx]
+
+                # Detect element order
+                elem_types, _, _ = gmsh.model.mesh.getElements(dim, ent_tag)
+                is_second_order  = any(et in [8, 26] for et in elem_types)
+
+                step = 2 if is_second_order else 1
+
+                for i in range(0, len(node_tags_sorted) - 1, step):
+                    tags      = node_tags_sorted[i: i + step + 1]
+                    node_list = [node_map[t] for t in tags if t in node_map]
+                    if len(node_list) < 2:
+                        continue
+                    f_scalar = _consistent_line_load(node_list, load_value)
+                    for node, f in zip(node_list, f_scalar):
+                        F[node.idx] += f * d
 
     gmsh.finalize()
     return F
