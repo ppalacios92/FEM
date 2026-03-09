@@ -155,6 +155,6 @@ Contributions are welcome! Feel free to submit pull requests, report bugs, or su
 
 Interactive visualizations included in this library — explore shape functions, Jacobian fields, and stiffness integrands live in Jupyter.
 
-| <img src="docs/images/01.png" width="100"/> | <img src="docs/images/02.png" width="100"/> | <img src="docs/images/03.png" width="100"/> | <img src="docs/images/04.png" width="100"/> |
+| <img src="docs/images/01.png" width="150"/> | <img src="docs/images/02.png" width="150"/> | <img src="docs/images/03.png" width="150"/> | <img src="docs/images/04.png" width="150"/> |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/images/05.png" width="100"/> | <img src="docs/images/06.png" width="100"/> | <img src="docs/images/07.png" width="100"/> | <img src="docs/images/08.png" width="100"/> |
+| <img src="docs/images/05.png" width="150"/> | <img src="docs/images/06.png" width="150"/> | <img src="docs/images/07.png" width="150"/> | <img src="docs/images/08.png" width="150"/> |
