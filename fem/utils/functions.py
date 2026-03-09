@@ -6,11 +6,44 @@ import gmsh
 
 
 
-def matrix_extract(matrix: np.ndarray, row_indices: np.ndarray, col_indices: np.ndarray) -> np.ndarray:
+def matrix_extract(matrix: np.ndarray, 
+                    row_indices: np.ndarray, 
+                    col_indices: np.ndarray) -> np.ndarray:
+    """
+    Extract a submatrix from a matrix at the given row and column indices.
+
+    Parameters
+    ----------
+    matrix      : np.ndarray  Source matrix
+    row_indices : np.ndarray  Row indices to extract
+    col_indices : np.ndarray  Column indices to extract
+
+    Returns
+    -------
+    np.ndarray  Submatrix of shape (len(row_indices), len(col_indices))
+    """
     return matrix[np.ix_(row_indices, col_indices)]
 
 
-def matrix_replace(matrix: np.ndarray, matrix_add: np.ndarray, row_indices: np.ndarray, col_indices: np.ndarray) -> np.ndarray:
+def matrix_replace(matrix: np.ndarray, 
+                    matrix_add: np.ndarray, 
+                    row_indices: np.ndarray, 
+                    col_indices: np.ndarray) -> np.ndarray:
+    """
+    Add a submatrix into a matrix at the given row and column indices.
+
+    Parameters
+    ----------
+    matrix      : np.ndarray  Source matrix (not modified in place)
+    matrix_add  : np.ndarray  Submatrix to add
+    row_indices : np.ndarray  Row indices where submatrix is added
+    col_indices : np.ndarray  Column indices where submatrix is added
+
+    Returns
+    -------
+    np.ndarray  Updated matrix with submatrix added at specified indices
+    """
+
     updated_matrix = matrix.copy()
     updated_matrix[np.ix_(row_indices, col_indices)] += matrix_add
     return updated_matrix
