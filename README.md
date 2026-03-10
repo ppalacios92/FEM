@@ -198,5 +198,5 @@ Interactive visualizations included in this library — explore shape functions,
 
 ## Why not?
 
-| <img src="docs/images/00.png" width="600"/> |
+| <img src="docs/images/00.png" width="500"/> |
 |:---:|
