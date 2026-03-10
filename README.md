@@ -2,6 +2,7 @@
 
 A Python library for structural analysis using the Finite Element Method, developed for educational and research purposes in civil and structural engineering.
 
+> Based on the FEM course by Prof. José Abell — Universidad de los Andes.
 ---
 
 ## ⚙️ Features
@@ -52,14 +53,15 @@ pip install -e .
 
 ```bash
 FEM/
-├── fem/
-│   ├── core/             # Node, Material, Section definitions
-│   ├── elements/         # CST, LST, Quad4, Quad9, Truss2D, Frame2D
-│   ├── sections/         # Membrane section
-│   └── functions.py      # Assembly, load vector, gmsh utilities
-├── examples/             # Jupyter notebooks with usage examples
+├── src/
+│   └── fem/
+│       ├── core/             # Node, Material, parameters
+│       ├── elements/         # CST, LST, Quad4, Quad9, Truss2D, Frame2D
+│       ├── sections/         # Membrane section
+│       └── utils/            # functions, gmshtools, visualization, units
+├── examples/                 # Jupyter notebooks with usage examples
 ├── docs/
-│   └── images/           # Reference plots and visualization outputs
+│   └── images/               # Reference plots and visualization outputs
 └── README.md
 ```
 
@@ -68,10 +70,13 @@ FEM/
 ## 🧩 Import Modules
 
 ```python
-from fem.core import Node, Material
-from fem.elements import CST, LST, Truss2D, Frame2D, Quad4, Quad9
-from fem.sections import Membrane
-from fem.functions import build_nodes_from_gmsh, create_elements_from_gmsh, build_load_vector
+from fem import (
+    Node, Material, Membrane,
+    CST, LST, Truss2D, Frame2D, Quad4, Quad9,
+    read_mesh, build_nodes, build_elements, build_load_vector,
+    mm, cm, m, kN, MPa, GPa,
+    globalParameters,
+)
 ```
 
 ---
@@ -80,14 +85,13 @@ from fem.functions import build_nodes_from_gmsh, create_elements_from_gmsh, buil
 
 ```python
 import numpy as np
-from fem.core import Node, Material
-from fem.sections import Membrane
-from fem.elements import Quad4
-from fem.functions import build_nodes_from_gmsh, create_elements_from_gmsh, build_load_vector
+from fem import Node, Material, Membrane, Quad4
+from fem import read_mesh, build_nodes, build_elements, build_load_vector
+from fem import MPa, mm
 
 # Material and section
-Steel    = Material(name='Steel', E=200000.0, nu=0.30, rho=0.0)
-Plate    = Membrane(name='Plate', thickness=10.0, material=Steel)
+Steel = Material(name='Steel', E=200000.0, nu=0.30, rho=0.0)
+Plate = Membrane(name='Plate', thickness=10.0, material=Steel)
 
 # Dictionaries
 section_dictionary  = {201: Plate}
@@ -95,8 +99,9 @@ load_dictionary     = {50: {'value': 100.0, 'direction': 'x'}}
 restrain_dictionary = {101: ['r', 'r']}
 
 # Build model from gmsh mesh
-node_map, nodes = build_nodes_from_gmsh('mesh.msh', restrain_dictionary=restrain_dictionary)
-elements        = create_elements_from_gmsh('mesh.msh', node_map, section_dictionary, {4: Quad4})
+mesh                = read_mesh('mesh.msh')
+node_map, nodes     = build_nodes(mesh, restrain_dictionary)
+elements            = build_elements(mesh, node_map, section_dictionary, {4: Quad4})
 
 # Assembly and solve
 # ..(see examples/ for full workflows)
@@ -118,7 +123,6 @@ Developed by **Patricio Palacios B. - Nicolas Mora Bowen**
 GitHub: [@ppalacios92](https://github.com/ppalacios92)
 GitHub: [@nmorabowen](https://github.com/nmorabowen)
 
-
 ---
 
 ## 📚 How to Cite
@@ -135,7 +139,7 @@ GitHub: [@nmorabowen](https://github.com/nmorabowen)
 ```
 
 **APA (7th Edition):**
-Palacios B., P. , Mora Bowen N. (2025). *FEM: A Python library for finite element analysis* [Computer software]. GitHub. https://github.com/ppalacios92/FEM
+Palacios P. , Mora Bowen N. (2025). *FEM: A Python library for finite element analysis* [Computer software]. GitHub. https://github.com/ppalacios92/FEM
 
 ---
 
@@ -158,3 +162,8 @@ Interactive visualizations included in this library — explore shape functions,
 | <img src="docs/images/01.png" width="150"/> | <img src="docs/images/02.png" width="150"/> | <img src="docs/images/03.png" width="150"/> | <img src="docs/images/04.png" width="150"/> |
 |:---:|:---:|:---:|:---:|
 | <img src="docs/images/05.png" width="150"/> | <img src="docs/images/06.png" width="150"/> | <img src="docs/images/07.png" width="150"/> | <img src="docs/images/08.png" width="150"/> |
+
+> *Why not?"*
+
+| <img src="docs/images/00.png" width="200"/> |
+|:---:|
