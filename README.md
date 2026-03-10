@@ -163,7 +163,7 @@ Interactive visualizations included in this library — explore shape functions,
 |:---:|:---:|:---:|:---:|
 | <img src="docs/images/05.png" width="150"/> | <img src="docs/images/06.png" width="150"/> | <img src="docs/images/07.png" width="150"/> | <img src="docs/images/08.png" width="150"/> |
 
-> *Why not?"*
+## Why not?"
 
-| <img src="docs/images/00.png" width="200"/> |
+| <img src="docs/images/00.png" width="500"/> |
 |:---:|
