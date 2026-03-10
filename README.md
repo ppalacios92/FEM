@@ -43,7 +43,7 @@ Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/ppalacios92/FEM.git
 cd FEM
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ---
