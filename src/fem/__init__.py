@@ -31,6 +31,14 @@ from .utils.visualization import (
     add_node_data_view,
     compute_nodal_average,
 )
+# plotting 
+from .utils.plotting import (
+    plot_mesh,
+    plot_field_2d,
+    plot_deformed,
+    plot_loads_2d,
+)
+
 # Units
 from .utils.units import (
     # Length
