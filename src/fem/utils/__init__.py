@@ -18,6 +18,13 @@ from .visualization import (
     compute_nodal_average,
 )
 
+from .plotting import (
+    plot_mesh,
+    plot_field_2d,
+    plot_deformed,
+    plot_loads_2d,
+)
+
 __all__ = [
     # Matrix utilities
     'matrix_extract',
