@@ -29,14 +29,40 @@ from .utils.functions import (
     matrix_extract,
     matrix_replace,
     get_nodes_from_physical_id,
-    get_line_load_global_vector
+    get_line_load_global_vector,
+    build_nodes_from_gmsh,         
+    create_elements_from_gmsh,     
+    build_load_vector               
 )
-
 # Visualization utilities
 from .utils.visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average
 )
+# Units                           
+from .utils.units import (
+    mm, cm, m,
+    kgf, N, tf, kN,
+    MPa, GPa
+)
+
+# Global parameters
+from .core.parameters import globalParameters
 
 __version__ = "0.1.0"
+
+
+print("""
+  FEM -- Finite Element Method for Structural Analysis
+  Based on the course by Prof. José Abell
+
+  Version 0.1.0                        © 2026 All Rights Reserved
+
+  Repository  :  https://github.com/ppalacios92/FEM
+  Web Book    :  https://books.nmorabowen.com/books/fem
+
+  Patricio Palacios B.    |    Nicolas Mora Bowen
+
+  ********* (>'-')> Ladruño4ever  *********
+""")
