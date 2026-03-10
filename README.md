@@ -5,7 +5,7 @@ A Python library for structural analysis using the Finite Element Method, develo
 > Based on the FEM course by Prof. José Abell — Universidad de los Andes.
 ---
 
-## ⚙️ Features
+## Features
 
 - Modular element library covering 1D, 2D, and membrane elements.
 - Implements the following element types:
@@ -23,7 +23,7 @@ A Python library for structural analysis using the Finite Element Method, develo
 
 ---
 
-## 📦 Requirements
+## Requirements
 
 - Python 3.8 or higher
 - Python libraries:
@@ -37,7 +37,7 @@ A Python library for structural analysis using the Finite Element Method, develo
 
 ---
 
-## 🚀 Installation
+## Installation
 
 Clone the repository and install dependencies:
 
@@ -49,7 +49,7 @@ pip install -e .
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```bash
 FEM/
@@ -67,7 +67,7 @@ FEM/
 
 ---
 
-## 🧩 Import Modules
+## Import Modules
 
 ```python
 from fem import (
@@ -81,7 +81,7 @@ from fem import (
 
 ---
 
-## 🔧 Basic Usage
+## Basic Usage
 
 ```python
 import numpy as np
@@ -117,7 +117,7 @@ The author assumes no responsibility for incorrect use, misinterpretation of res
 
 ---
 
-## 👨‍💻 Author
+## Author
 
 Developed by **Patricio Palacios B. - Nicolas Mora Bowen**
 GitHub: [@ppalacios92](https://github.com/ppalacios92)
@@ -125,7 +125,7 @@ GitHub: [@nmorabowen](https://github.com/nmorabowen)
 
 ---
 
-## 📚 How to Cite
+## How to Cite
 
 ```bibtex
 @misc{palacios2025fem,
@@ -143,19 +143,19 @@ Palacios P. , Mora Bowen N. (2025). *FEM: A Python library for finite element an
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License – see the LICENSE file for details.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to submit pull requests, report bugs, or suggest new features through the GitHub issues page.
 
 ---
 
-## 🎉 Get Fun with FEM!
+## Get Fun with FEM!
 
 Interactive visualizations included in this library — explore shape functions, Jacobian fields, and stiffness integrands live in Jupyter.
 
@@ -163,7 +163,7 @@ Interactive visualizations included in this library — explore shape functions,
 |:---:|:---:|:---:|:---:|
 | <img src="docs/images/05.png" width="150"/> | <img src="docs/images/06.png" width="150"/> | <img src="docs/images/07.png" width="150"/> | <img src="docs/images/08.png" width="150"/> |
 
-## Why not?"
+## Why not?
 
 | <img src="docs/images/00.png" width="500"/> |
 |:---:|
