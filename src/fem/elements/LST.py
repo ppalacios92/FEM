@@ -11,7 +11,7 @@ class LST:
                  section: object, 
                  load_direction=None,
                  type: str = 'planeStress',
-                 sampling_points=2,
+                 sampling_points=3,
                  eval_points=[0,0],
                  print_summary=False,
                  nDof=2):

@@ -32,10 +32,16 @@ class CST:
         self.load_direction = load_direction
         self.type = type
 
+        # Initialize the element properties
+        self.thickness = self.section.thickness
+        self.material  = self.section.material
+        self.C         = self.material.get_Emat(self.type)
+
         self.compute_area()
         self.idx=self.calculate_indices()
-        self.kg=self.get_stiffness_matrix()
-        
+        self.kg=self.get_stiffness_matrix()       
+
+
         if print_summary is True:
             self.printSummary()
 
@@ -157,7 +163,7 @@ class CST:
         Returns:
             Ke (6x6 np.array): Local stiffness matrix
         """
-        D = self.section.get_Emat(self.type)
+        D = self.C
         B = self.get_B_matrix()
         t = self.section.thickness
 
