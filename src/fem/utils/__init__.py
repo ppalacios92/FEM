@@ -23,6 +23,7 @@ from .plotting import (
     plot_field_2d,
     plot_deformed,
     plot_loads_2d,
+    plot_gmsh_mesh,
 )
 
 __all__ = [
@@ -43,4 +44,10 @@ __all__ = [
     'add_element_data_view',
     'add_node_data_view',
     'compute_nodal_average',
+    # Plotting
+    'plot_mesh',
+    'plot_field_2d',
+    'plot_deformed',
+    'plot_loads_2d',
+    'plot_gmsh_mesh',
 ]

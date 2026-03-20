@@ -9,20 +9,24 @@ import matplotlib.collections as mc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-# -- Internal helpers ----------------------------------------------------------
-
+# -- Internal helpers 
 def _get_node_coords(nodes: list, u: np.ndarray = None, sfac: float = 1.0) -> np.ndarray:
     """
-    Return node coordinates, optionally shifted by scaled displacements.
+    Return node coordinates as (N, 3) array, padding z=0 if not present.
     sfac is applied for plotting only — original data is never modified.
     """
-    coords = np.array([n.coordinates[:2] for n in nodes], dtype=float)
+    coords = np.zeros((len(nodes), 3), dtype=float)
+    for i, n in enumerate(nodes):
+        c = n.coordinates
+        coords[i, 0] = c[0]
+        coords[i, 1] = c[1]
+        coords[i, 2] = c[2] if len(c) > 2 else 0.0
+
     if u is not None and sfac != 0:
         for i, node in enumerate(nodes):
             coords[i, 0] += sfac * u[node.idx[0]]
             coords[i, 1] += sfac * u[node.idx[1]]
     return coords
-
 
 def _get_triangulation(nodes: list, elements: list,
                         u: np.ndarray = None, sfac: float = 1.0) -> mtri.Triangulation:
@@ -110,7 +114,7 @@ def _draw_element_edges(ax, nodes, elements, u=None, sfac=1.0,
     """Draw element boundary edges over a plot."""
     coords   = _get_node_coords(nodes, u, sfac)
     node_map = {node.name: i for i, node in enumerate(nodes)}
-    polygons = [coords[[node_map[n.name] for n in el.nodes], :] for el in elements]
+    polygons = [coords[[node_map[n.name] for n in el.nodes], :2] for el in elements]
     ax.add_collection(mc.PolyCollection(polygons,
                                         facecolors='none',
                                         edgecolors=color,
@@ -167,8 +171,7 @@ def _save_figure(fig, save: str):
     fig.savefig(save, dpi=300, bbox_inches='tight')
 
 
-# -- Public functions ----------------------------------------------------------
-
+# --------------------------------------
 def plot_mesh(nodes=None,
               elements=None,
               show_node_labels: bool = False,
@@ -176,62 +179,100 @@ def plot_mesh(nodes=None,
               show_supports: bool = True,
               show_element_edges: bool = True,
               show_node_points: bool = True,
+              view_3d: bool = False,
+              elev: float = 30,
+              azim: float = -60,
               figsize: tuple = (12, 8),
               ax=None,
+              xlim=None, ylim=None,
               save: str = None):
-    """
-    Plot the FEM mesh.
 
-    Parameters
-    ----------
-    nodes               : list of Node
-    elements            : list of Element
-    show_node_labels    : bool
-    show_element_labels : bool
-    show_supports       : bool
-    show_element_edges  : bool
-    show_node_points    : bool
-    figsize             : tuple
-    ax                  : matplotlib Axes or None
-    save                : str or None
-    """
-    fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
+    if view_3d:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+    else:
+        fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
 
     if elements is not None and nodes is not None:
         coords   = _get_node_coords(nodes)
         node_map = {node.name: i for i, node in enumerate(nodes)}
-        polygons = [coords[[node_map[n.name] for n in el.nodes], :] for el in elements]
 
-        ax.add_collection(mc.PolyCollection(polygons,
-                                            facecolors='#f0f0f0',
-                                            edgecolors='tab:blue' if show_element_edges else 'none',
-                                            linewidths=0.4,
-                                            zorder=1))
+        for el in elements:
+            idx  = [node_map[n.name] for n in el.nodes]
+            # poly = coords[idx, :]
+            poly = coords[idx, :2]
+            if view_3d:
+                from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+                # poly3d = np.array([n.coordinates[:3] for n in el.nodes])
+                poly3d = np.array([
+                    (n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0)
+                    for n in el.nodes
+                ])
+                verts  = [[(x, y, z) for x, y, z in poly3d]]
+                ax.add_collection3d(Poly3DCollection(verts,
+                                                     facecolors='#f0f0f0',
+                                                     edgecolors='tab:blue' if show_element_edges else 'none',
+                                                     linewidths=0.4))
+            else:
+                ax.add_collection(mc.PolyCollection([poly],
+                                                    facecolors='#f0f0f0',
+                                                    edgecolors='tab:blue' if show_element_edges else 'none',
+                                                    linewidths=0.4,
+                                                    zorder=1))
 
         if show_element_labels:
             for element in elements:
                 x_c, y_c = element.get_centroid()
-                ax.text(x_c, y_c, f'{element.element_tag}',
-                        color='tab:blue', ha='center', va='center', fontsize=6, zorder=3)
+                if view_3d:
+                    coords3d = np.array([(n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0) for n in element.nodes])
+                    z_c      = coords3d[:, 2].mean()
+                    ax.text(x_c, y_c, z_c, f'{element.element_tag}',
+                            color='tab:blue', ha='center', va='center', fontsize=6)
+                else:
+                    ax.text(x_c, y_c, f'{element.element_tag}',
+                            color='tab:blue', ha='center', va='center', fontsize=6, zorder=3)
 
     if nodes is not None:
         if show_node_points:
-            coords = _get_node_coords(nodes)
-            ax.plot(coords[:, 0], coords[:, 1], '.',
-                    color='tab:blue', markersize=2, zorder=2)
+            if view_3d:
+                coords3d = np.array([(n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0) for n in nodes])
+                ax.scatter(coords3d[:, 0], coords3d[:, 1], coords3d[:, 2],
+                           color='tab:blue', s=4, zorder=2)
+            else:
+                coords2d = _get_node_coords(nodes)
+                ax.plot(coords2d[:, 0], coords2d[:, 1], '.',
+                        color='tab:blue', markersize=2, zorder=2)
 
         if show_node_labels:
             for node in nodes:
-                x, y = node.coordinates[:2]
-                ax.text(x, y, f' {node.name}',
-                        color='tab:blue', fontsize=6,
-                        ha='left', va='bottom', zorder=3)
+                x = node.coordinates[0]
+                y = node.coordinates[1]
+                z = node.coordinates[2] if len(node.coordinates) > 2 else 0.0
+                if view_3d:
+                    ax.text(x, y, z, f' {node.name}',
+                            color='tab:blue', fontsize=6)
+                else:
+                    ax.text(x, y, f' {node.name}',
+                            color='tab:blue', fontsize=6,
+                            ha='left', va='bottom', zorder=3)
 
         if show_supports:
             _draw_supports(ax, nodes)
 
-    ax.set_aspect('equal')
-    ax.autoscale()
+    if not view_3d:
+        ax.set_aspect('equal')
+        ax.autoscale()
+        if xlim and ylim:
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+        else:
+            x_min, x_max = ax.get_xlim()
+            y_min, y_max = ax.get_ylim()
+            margin = max((x_max - x_min), (y_max - y_min)) * 0.05
+            ax.set_xlim(x_min - margin, x_max + margin)
+            ax.set_ylim(y_min - margin, y_max + margin)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_title('Mesh')
@@ -242,15 +283,22 @@ def plot_mesh(nodes=None,
     plt.show()
 
 
+
+
 def plot_loads_2d(nodes: list,
-                  elements: list,
-                  F_load: np.ndarray,
-                  show_element_edges: bool = True,
-                  show_node_points: bool = True,
-                  show_supports: bool = True,
-                  figsize: tuple = (12, 8),
-                  ax=None,
-                  save: str = None):
+               elements: list,
+               F_load: np.ndarray,
+               show_element_edges: bool = True,
+               show_node_points: bool = True,
+               show_supports: bool = True,
+               view_3d: bool = False,
+               elev: float = 30,
+               azim: float = -60,
+               figsize: tuple = (12, 8),
+               ax=None,
+               xlim=None, ylim=None,
+               save: str = None):
+
     """
     Plot applied nodal loads as arrows over the mesh background.
 
@@ -267,19 +315,41 @@ def plot_loads_2d(nodes: list,
     show_supports       : bool
     figsize             : tuple
     ax                  : matplotlib Axes or None
+    xlim,ylim           : axis lims
     save                : str or None
     """
-    fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
+
+    if view_3d:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+    else:
+        fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
 
     if elements is not None and nodes is not None:
         coords   = _get_node_coords(nodes)
         node_map = {node.name: i for i, node in enumerate(nodes)}
-        polygons = [coords[[node_map[n.name] for n in el.nodes], :] for el in elements]
-        ax.add_collection(mc.PolyCollection(polygons,
-                                            facecolors='#f0f0f0',
-                                            edgecolors='#888888' if show_element_edges else 'none',
-                                            linewidths=0.4,
-                                            zorder=1))
+        polygons = [coords[[node_map[n.name] for n in el.nodes], :2] for el in elements]
+
+        if view_3d:
+            from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+            for el in elements:
+                idx    = [node_map[n.name] for n in el.nodes]
+                poly3d = np.array([
+                    (n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0)
+                    for n in el.nodes
+                ])
+                verts = [[(x, y, z) for x, y, z in poly3d]]
+                ax.add_collection3d(Poly3DCollection(verts,
+                                                     facecolors='#f0f0f0',
+                                                     edgecolors='#888888' if show_element_edges else 'none',
+                                                     linewidths=0.4))
+        else:
+            ax.add_collection(mc.PolyCollection(polygons,
+                                                facecolors='#f0f0f0',
+                                                edgecolors='#888888' if show_element_edges else 'none',
+                                                linewidths=0.4,
+                                                zorder=1))
 
     if show_node_points:
         _draw_node_points(ax, nodes, color='#444444', markersize=2)
@@ -298,29 +368,55 @@ def plot_loads_2d(nodes: list,
         fxs = np.array([fx for _, fx, _ in loaded_nodes], dtype=float)
         fys = np.array([fy for _, _, fy in loaded_nodes], dtype=float)
 
-        # Normalize each vector to unit length
         mags = np.sqrt(fxs**2 + fys**2)
         mags[mags == 0] = 1
         uxs = fxs / mags
         uys = fys / mags
 
-        # Arrow length = 5% of the model bounding box diagonal
         all_coords = _get_node_coords(nodes)
-        bbox_diag  = np.sqrt((np.ptp(all_coords[:, 0]))**2 + (np.ptp(all_coords[:, 1]))**2)
-        arrow_len  = 0.05 * bbox_diag
+        
+        if view_3d:
+            all_coords_3d = np.array([
+                [n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0]
+                for n in nodes
+            ])
+            bbox_diag = np.sqrt(np.ptp(all_coords_3d[:, 0])**2 +
+                                np.ptp(all_coords_3d[:, 1])**2 +
+                                np.ptp(all_coords_3d[:, 2])**2)
+            arrow_len = 0.002 * bbox_diag  # ajusta este factor si sigue grande/chico
+        else:
+            bbox_diag = np.sqrt(np.ptp(all_coords[:, 0])**2 + np.ptp(all_coords[:, 1])**2)
+            arrow_len = 0.05 * bbox_diag
 
-        ax.quiver(xs, ys, uxs, uys,
-                  scale=1.0 / arrow_len,
-                  scale_units='xy',
-                  angles='xy',
-                  color='tab:blue',
-                  width=0.002,
-                  headwidth=4,
-                  headlength=5,
-                  zorder=5)
+        if view_3d:
+            zs = np.array([n.coordinates[2] if len(n.coordinates) > 2 else 0.0 for n, _, _ in loaded_nodes])
+            ax.quiver(xs, ys, zs, uxs * arrow_len, uys * arrow_len, np.zeros_like(uxs),
+                      color='tab:blue', normalize=False)
+        else:
+            ax.quiver(xs, ys, uxs, uys,
+                      scale=1.0 / arrow_len,
+                      scale_units='xy',
+                      angles='xy',
+                      color='tab:blue',
+                      width=0.002,
+                      headwidth=4,
+                      headlength=5,
+                      zorder=5)
 
-    ax.set_aspect('equal')
-    ax.autoscale()
+
+    if not view_3d:
+        ax.set_aspect('equal')
+        ax.autoscale()
+        if xlim and ylim:
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+        else:
+            x_min, x_max = ax.get_xlim()
+            y_min, y_max = ax.get_ylim()
+            margin = max((x_max - x_min), (y_max - y_min)) * 0.05
+            ax.set_xlim(x_min - margin, x_max + margin)
+            ax.set_ylim(y_min - margin, y_max + margin)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_title('Applied Loads')
@@ -329,6 +425,8 @@ def plot_loads_2d(nodes: list,
         _save_figure(fig, save)
 
     plt.show()
+
+
 
 
 def plot_deformed(nodes: list,
@@ -341,8 +439,12 @@ def plot_deformed(nodes: list,
                   show_element_edges: bool = True,
                   show_node_points: bool = False,
                   show_supports: bool = True,
+                  view_3d: bool = False,
+                  elev: float = 30,
+                  azim: float = -60,
                   figsize: tuple = (12, 8),
                   ax=None,
+                  xlim=None, ylim=None,
                   save: str = None):
     """
     Plot undeformed mesh (transparent background) with deformed mesh on top,
@@ -356,29 +458,28 @@ def plot_deformed(nodes: list,
     component           : str             'ux', 'uy', 'umag'
     sfac                : float           Displacement scale factor (plot only)
     cmap                : str             Matplotlib colormap or 'basic'
-    limit               : tuple or None   (min, max) — fixes cmap range; outside → tab:red
+    limit               : tuple or None   (min, max) — fixes cmap range; outside -> tab:red
     show_element_edges  : bool
     show_node_points    : bool
     show_supports       : bool
+    view_3d             : bool
+    elev                : float
+    azim                : float
     figsize             : tuple
     ax                  : matplotlib Axes or None
+    xlim,ylim           : axis lims
     save                : str or None
     """
-    fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
+    if view_3d:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+    else:
+        fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
 
     node_map = {node.name: i for i, node in enumerate(nodes)}
 
-    # ── Undeformed — transparent background ───────────────────────────────
-    coords_orig = _get_node_coords(nodes)
-    polygons_orig = [coords_orig[[node_map[n.name] for n in el.nodes], :] for el in elements]
-    ax.add_collection(mc.PolyCollection(polygons_orig,
-                                        facecolors='#f0f0f0',
-                                        edgecolors='tab:blue',
-                                        linewidths=0.4,
-                                        alpha=0.3,
-                                        zorder=1))
-
-    # ── Displacement values ────────────────────────────────────────────────
+    # Displacement values
     disp_vals = np.zeros(len(nodes))
     for i, node in enumerate(nodes):
         ux = u[node.idx[0]]
@@ -398,56 +499,107 @@ def plot_deformed(nodes: list,
     cmap_obj  = plt.get_cmap('Greys') if use_basic else plt.get_cmap(cmap)
     norm      = plt.Normalize(vmin=vmin, vmax=vmax)
 
-    coords_def = _get_node_coords(nodes, u, sfac)
-    triang_def = _get_triangulation(nodes, elements, u, sfac)
+    coords_orig = _get_node_coords(nodes)
+    coords_def  = _get_node_coords(nodes, u, sfac)
 
-    if not use_basic:
-        # Smooth contourf surface
-        tcf = ax.tricontourf(triang_def, disp_vals, levels=50,
-                             cmap=cmap, norm=norm, zorder=2)
+    if view_3d:
+        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-        # Out-of-range overlay
-        if limit is not None:
-            out_polys = []
-            for el in elements:
-                idx = [node_map[n.name] for n in el.nodes]
-                if np.mean(disp_vals[idx]) < vmin or np.mean(disp_vals[idx]) > vmax:
-                    out_polys.append(coords_def[idx, :])
-            if out_polys:
-                ax.add_collection(mc.PolyCollection(out_polys,
-                                                    facecolors='tab:red',
-                                                    edgecolors='none',
-                                                    alpha=0.7, zorder=3))
+        # Undeformed — transparent
+        for el in elements:
+            idx    = [node_map[n.name] for n in el.nodes]
+            poly3d = coords_orig[idx, :3]
+            verts  = [[(x, y, z) for x, y, z in poly3d]]
+            ax.add_collection3d(Poly3DCollection(verts,
+                                                 facecolors='#f0f0f0',
+                                                 edgecolors='tab:blue',
+                                                 linewidths=0.4,
+                                                 alpha=0.2))
 
-        sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
-        _add_colorbar(fig, ax, sm, component)
-
-    else:
-        polygons_def = []
-        colors_def   = []
+        # Deformed — colored by avg disp
         for el in elements:
             idx      = [node_map[n.name] for n in el.nodes]
+            poly3d   = coords_def[idx, :3]
             avg_disp = np.mean(disp_vals[idx])
-            polygons_def.append(coords_def[idx, :])
-            outside = (avg_disp < vmin or avg_disp > vmax) if limit is not None else False
-            colors_def.append('tab:red' if outside else '#d0d0d0')
-        ax.add_collection(mc.PolyCollection(polygons_def,
-                                            facecolors=colors_def,
-                                            edgecolors='none',
-                                            alpha=0.9, zorder=2))
+            color    = cmap_obj(norm(avg_disp))
+            verts    = [[(x, y, z) for x, y, z in poly3d]]
+            ax.add_collection3d(Poly3DCollection(verts,
+                                                 facecolors=color,
+                                                 edgecolors='k' if show_element_edges else 'none',
+                                                 linewidths=0.3,
+                                                 alpha=0.8))
 
-    if show_element_edges:
-        _draw_element_edges(ax, nodes, elements, u, sfac,
-                            color='k', linewidth=0.3, alpha=0.4, zorder=4)
+        sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
+        sm.set_array([])
+        plt.colorbar(sm, ax=ax, label=component, shrink=0.5)
 
-    if show_node_points:
-        _draw_node_points(ax, nodes, u, sfac, zorder=5)
+    else:
+        # Undeformed — transparent background
+        polygons_orig = [coords_orig[[node_map[n.name] for n in el.nodes], :2] for el in elements]
+        ax.add_collection(mc.PolyCollection(polygons_orig,
+                                            facecolors='#f0f0f0',
+                                            edgecolors='tab:blue',
+                                            linewidths=0.4,
+                                            alpha=0.3,
+                                            zorder=1))
 
-    if show_supports:
-        _draw_supports(ax, nodes, u=u, sfac=sfac)
+        triang_def = _get_triangulation(nodes, elements, u, sfac)
 
-    ax.set_aspect('equal')
-    ax.autoscale()
+        if not use_basic:
+            ax.tricontourf(triang_def, disp_vals, levels=50,
+                           cmap=cmap, norm=norm, zorder=2)
+
+            if limit is not None:
+                out_polys = []
+                for el in elements:
+                    idx = [node_map[n.name] for n in el.nodes]
+                    if np.mean(disp_vals[idx]) < vmin or np.mean(disp_vals[idx]) > vmax:
+                        out_polys.append(coords_def[idx, :2])
+                if out_polys:
+                    ax.add_collection(mc.PolyCollection(out_polys,
+                                                        facecolors='tab:red',
+                                                        edgecolors='none',
+                                                        alpha=0.7, zorder=3))
+
+            sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
+            _add_colorbar(fig, ax, sm, component)
+
+        else:
+            polygons_def = []
+            colors_def   = []
+            for el in elements:
+                idx      = [node_map[n.name] for n in el.nodes]
+                avg_disp = np.mean(disp_vals[idx])
+                polygons_def.append(coords_def[idx, :2])
+                outside = (avg_disp < vmin or avg_disp > vmax) if limit is not None else False
+                colors_def.append('tab:red' if outside else '#d0d0d0')
+            ax.add_collection(mc.PolyCollection(polygons_def,
+                                                facecolors=colors_def,
+                                                edgecolors='none',
+                                                alpha=0.9, zorder=2))
+
+        if show_element_edges:
+            _draw_element_edges(ax, nodes, elements, u, sfac,
+                                color='k', linewidth=0.3, alpha=0.4, zorder=4)
+
+        if show_node_points:
+            _draw_node_points(ax, nodes, u, sfac, zorder=5)
+
+        if show_supports:
+            _draw_supports(ax, nodes, u=u, sfac=sfac)
+
+        ax.set_aspect('equal')
+        ax.autoscale()
+        if xlim and ylim:
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+        else:
+            x_min, x_max = ax.get_xlim()
+            y_min, y_max = ax.get_ylim()
+            margin = max((x_max - x_min), (y_max - y_min)) * 0.05
+            ax.set_xlim(x_min - margin, x_max + margin)
+            ax.set_ylim(y_min - margin, y_max + margin)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     limit_str = f'  |  limit={limit}' if limit is not None else ''
@@ -460,26 +612,27 @@ def plot_deformed(nodes: list,
 
 
 def plot_field_2d(nodes: list,
-                  elements: list,
-                  u: np.ndarray,
-                  component: str = 'vmis',
-                  result_type: str = 'nodal_avg',
-                  deformed: bool = False,
-                  sfac: float = 1.0,
-                  limit: tuple = None,
-                  levels: int = None,
-                  cmap: str = 'jet',
-                  show_element_edges: bool = True,
-                  show_node_points: bool = False,
-                  show_supports: bool = True,
-                  figsize: tuple = (12, 8),
-                  ax=None,
-                  save: str = None):
+               elements: list,
+               u: np.ndarray,
+               component: str = 'vmis',
+               result_type: str = 'nodal_avg',
+               deformed: bool = False,
+               sfac: float = 1.0,
+               limit: tuple = None,
+               levels: int = None,
+               cmap: str = 'jet',
+               show_element_edges: bool = True,
+               show_node_points: bool = False,
+               show_supports: bool = True,
+               view_3d: bool = False,
+               elev: float = 30,
+               azim: float = -60,
+               figsize: tuple = (12, 8),
+               ax=None,
+               xlim=None, ylim=None,
+               save: str = None):
     """
     Plot a scalar stress or strain field over the FEM mesh.
-
-    Renders a smooth tricontourf surface first, then draws element edges
-    and optional isolines on top so individual elements remain visible.
 
     Parameters
     ----------
@@ -491,22 +644,30 @@ def plot_field_2d(nodes: list,
     result_type         : str                'nodal_avg' or 'element'
     deformed            : bool               Plot over deformed shape
     sfac                : float              Displacement scale factor (plot only)
-    limit               : tuple or None      (min, max) — fixes cmap range; outside → tab:red
-                                             Use cmap='basic' for gray/red mode.
+    limit               : tuple or None      (min, max) — fixes cmap range; outside -> tab:red
     levels              : int or None        Number of isolines drawn on top
     cmap                : str                Matplotlib colormap or 'basic'
     show_element_edges  : bool
     show_node_points    : bool
     show_supports       : bool
+    view_3d             : bool
+    elev                : float
+    azim                : float
     figsize             : tuple
     ax                  : matplotlib Axes or None
+    xlim,ylim           : axis lims
     save                : str or None
     """
+    if view_3d:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+    else:
+        fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
+
     u_plot       = u if deformed else None
     element_vals = _extract_field(elements, u, component)
     node_map     = {node.name: i for i, node in enumerate(nodes)}
-
-    fig, ax = (ax.get_figure(), ax) if ax is not None else plt.subplots(figsize=figsize)
 
     vmin      = limit[0] if limit is not None else element_vals.min()
     vmax      = limit[1] if limit is not None else element_vals.max()
@@ -514,65 +675,89 @@ def plot_field_2d(nodes: list,
     cmap_obj  = plt.get_cmap('Greys') if use_basic else plt.get_cmap(cmap)
     norm      = plt.Normalize(vmin=vmin, vmax=vmax)
 
-    # ── Nodal values for smooth surface ───────────────────────────────────
-    nodal_vals = _nodal_average(nodes, elements, element_vals)
-    triang     = _get_triangulation(nodes, elements, u_plot, sfac)
-    coords     = _get_node_coords(nodes, u_plot, sfac)
+    coords = _get_node_coords(nodes, u_plot, sfac)
 
-    if not use_basic:
-        # Smooth filled contour surface
-        ax.tricontourf(triang, nodal_vals, levels=50,
-                       cmap=cmap, norm=norm, zorder=1)
+    if view_3d:
+        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-        # Isolines on top
-        if levels is not None:
-            ax.tricontour(triang, nodal_vals, levels=levels,
-                          colors='k', linewidths=0.5, alpha=0.5,
-                          norm=norm, zorder=3)
-
-        # Out-of-range overlay
-        if limit is not None:
-            out_polys = []
-            for el, val in zip(elements, element_vals):
-                if val < vmin or val > vmax:
-                    idx = [node_map[n.name] for n in el.nodes]
-                    out_polys.append(coords[idx, :])
-            if out_polys:
-                ax.add_collection(mc.PolyCollection(out_polys,
-                                                    facecolors='tab:red',
-                                                    edgecolors='none',
-                                                    alpha=0.7, zorder=4))
+        for el, val in zip(elements, element_vals):
+            idx    = [node_map[n.name] for n in el.nodes]
+            poly3d = coords[idx, :3]
+            color  = cmap_obj(norm(val))
+            verts  = [[(x, y, z) for x, y, z in poly3d]]
+            ax.add_collection3d(Poly3DCollection(verts,
+                                                 facecolors=color,
+                                                 edgecolors='k' if show_element_edges else 'none',
+                                                 linewidths=0.3,
+                                                 alpha=0.9))
 
         sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
-        _add_colorbar(fig, ax, sm, component)
+        sm.set_array([])
+        plt.colorbar(sm, ax=ax, label=component, shrink=0.5)
 
     else:
-        # Basic mode — gray + red for out-of-range
-        polygons_f = []
-        colors_f   = []
-        for el, val in zip(elements, element_vals):
-            idx = [node_map[n.name] for n in el.nodes]
-            polygons_f.append(coords[idx, :])
-            outside = (val < vmin or val > vmax) if limit is not None else False
-            colors_f.append('tab:red' if outside else '#d0d0d0')
-        ax.add_collection(mc.PolyCollection(polygons_f,
-                                            facecolors=colors_f,
-                                            edgecolors='none',
-                                            alpha=0.9, zorder=1))
+        nodal_vals = _nodal_average(nodes, elements, element_vals)
+        triang     = _get_triangulation(nodes, elements, u_plot, sfac)
 
-    # ── Element edges on top of field ─────────────────────────────────────
-    if show_element_edges:
-        _draw_element_edges(ax, nodes, elements, u_plot, sfac,
-                            color='k', linewidth=0.3, alpha=0.35, zorder=5)
+        if not use_basic:
+            ax.tricontourf(triang, nodal_vals, levels=50,
+                           cmap=cmap, norm=norm, zorder=1)
 
-    if show_node_points:
-        _draw_node_points(ax, nodes, u_plot, sfac, zorder=6)
+            if levels is not None:
+                ax.tricontour(triang, nodal_vals, levels=levels,
+                              colors='k', linewidths=0.5, alpha=0.5,
+                              norm=norm, zorder=3)
 
-    if show_supports:
-        _draw_supports(ax, nodes, u=u_plot, sfac=sfac if deformed else 1.0)
+            if limit is not None:
+                out_polys = []
+                for el, val in zip(elements, element_vals):
+                    if val < vmin or val > vmax:
+                        idx = [node_map[n.name] for n in el.nodes]
+                        out_polys.append(coords[idx, :2])
+                if out_polys:
+                    ax.add_collection(mc.PolyCollection(out_polys,
+                                                        facecolors='tab:red',
+                                                        edgecolors='none',
+                                                        alpha=0.7, zorder=4))
 
-    ax.set_aspect('equal')
-    ax.autoscale()
+            sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
+            _add_colorbar(fig, ax, sm, component)
+
+        else:
+            polygons_f = []
+            colors_f   = []
+            for el, val in zip(elements, element_vals):
+                idx = [node_map[n.name] for n in el.nodes]
+                polygons_f.append(coords[idx, :2])
+                outside = (val < vmin or val > vmax) if limit is not None else False
+                colors_f.append('tab:red' if outside else '#d0d0d0')
+            ax.add_collection(mc.PolyCollection(polygons_f,
+                                                facecolors=colors_f,
+                                                edgecolors='none',
+                                                alpha=0.9, zorder=1))
+
+        if show_element_edges:
+            _draw_element_edges(ax, nodes, elements, u_plot, sfac,
+                                color='k', linewidth=0.3, alpha=0.35, zorder=5)
+
+        if show_node_points:
+            _draw_node_points(ax, nodes, u_plot, sfac, zorder=6)
+
+        if show_supports:
+            _draw_supports(ax, nodes, u=u_plot, sfac=sfac if deformed else 1.0)
+
+        ax.set_aspect('equal')
+        ax.autoscale()
+        if xlim and ylim:
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+        else:
+            x_min, x_max = ax.get_xlim()
+            y_min, y_max = ax.get_ylim()
+            margin = max((x_max - x_min), (y_max - y_min)) * 0.05
+            ax.set_xlim(x_min - margin, x_max + margin)
+            ax.set_ylim(y_min - margin, y_max + margin)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     limit_str  = f'  |  limit={limit}' if limit is not None else ''
@@ -584,4 +769,164 @@ def plot_field_2d(nodes: list,
     if save:
         _save_figure(fig, save)
 
+    plt.show()
+
+
+
+# -----------------------------------------------------------------
+def plot_gmsh_mesh(mesh: dict,
+                   show_node_labels: bool = False,
+                   show_element_labels: bool = False,
+                   show_node_points: bool = True,
+                   view_3d: bool = False,
+                   elev: float = 30,
+                   azim: float = -60,
+                   figsize: tuple = (12, 8),
+                   save: str = None):
+
+    nodes    = mesh['nodes']
+    elements = mesh['elements']
+    phys_grp = mesh['physical_groups']
+
+    if view_3d:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=elev, azim=azim)
+    else:
+        fig, ax = plt.subplots(figsize=figsize)
+
+    colors = plt.cm.tab10.colors
+
+    for k, (phys_id, elem_data) in enumerate(elements.items()):
+        dim          = elem_data['dim']
+        n_nodes      = elem_data['n_nodes']
+        connectivity = elem_data['connectivity']
+        color        = colors[k % len(colors)]
+        name         = phys_grp[phys_id]['name']
+
+        # --- dim=0: points ---
+        if dim == 0:
+            for conn in connectivity:
+                for tag in conn:
+                    x, y, z = nodes[tag]
+                    if view_3d:
+                        ax.scatter(x, y, z, color=color, s=20, zorder=5, label=name)
+                    else:
+                        ax.plot(x, y, 'o', color=color, markersize=5, zorder=5, label=name)
+            name = None  # evitar duplicados en leyenda
+
+        # --- dim=1: lines ---
+        elif dim == 1:
+            for i, conn in enumerate(connectivity):
+                xs = [nodes[tag][0] for tag in conn]
+                ys = [nodes[tag][1] for tag in conn]
+                zs = [nodes[tag][2] for tag in conn]
+                lbl = name if i == 0 else None
+                if view_3d:
+                    ax.plot(xs, ys, zs, color=color, linewidth=1.5, zorder=4, label=lbl)
+                else:
+                    ax.plot(xs, ys, color=color, linewidth=1.5, zorder=4, label=lbl)
+
+        # --- dim=2: surfaces ---
+        elif dim == 2:
+            polygons    = []
+            polygons_3d = []
+            centroids   = []
+
+            for i, conn in enumerate(connectivity):
+                if view_3d:
+                    c = np.array([[nodes[tag][0], nodes[tag][1], nodes[tag][2]] for tag in conn])
+                    polygons_3d.append(c)
+                else:
+                    c = np.array([[nodes[tag][0], nodes[tag][1]] for tag in conn])
+                    polygons.append(c)
+                if show_element_labels:
+                    centroids.append((c.mean(axis=0), elem_data['element_tags'][i]))
+
+            if view_3d:
+                from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+                verts = [[(x, y, z) for x, y, z in poly] for poly in polygons_3d]
+                ax.add_collection3d(Poly3DCollection(verts,
+                                                     facecolors='#f0f0f0',
+                                                     edgecolors=color,
+                                                     linewidths=0.4,
+                                                     label=name))
+            else:
+                ax.add_collection(mc.PolyCollection(polygons,
+                                                    facecolors='#f0f0f0',
+                                                    edgecolors=color,
+                                                    linewidths=0.4,
+                                                    zorder=1,
+                                                    label=name))
+
+            if show_element_labels:
+                for centroid, tag in centroids:
+                    if view_3d:
+                        ax.text(centroid[0], centroid[1], centroid[2], str(tag),
+                                fontsize=5, ha='center', va='center', color=color)
+                    else:
+                        ax.text(centroid[0], centroid[1], str(tag),
+                                fontsize=5, ha='center', va='center', color=color, zorder=3)
+
+        # --- dim=3: volumes (solo 3D) ---
+        elif dim == 3 and view_3d:
+            from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+            for i, conn in enumerate(connectivity):
+                c     = np.array([[nodes[tag][0], nodes[tag][1], nodes[tag][2]] for tag in conn])
+                verts = [[(x, y, z) for x, y, z in c]]
+                lbl   = name if i == 0 else None
+                ax.add_collection3d(Poly3DCollection(verts,
+                                                     facecolors='#f0f0f0',
+                                                     edgecolors=color,
+                                                     linewidths=0.2,
+                                                     label=lbl))
+
+    if show_node_points:
+        for tag, (x, y, z) in nodes.items():
+            if view_3d:
+                ax.scatter(x, y, z, color='k', s=2, zorder=2)
+            else:
+                ax.plot(x, y, '.', color='k', markersize=2, zorder=2)
+
+    if show_node_labels:
+        for tag, (x, y, z) in nodes.items():
+            if view_3d:
+                ax.text(x, y, z, f' {tag}', fontsize=5, color='k')
+            else:
+                ax.text(x, y, f' {tag}', fontsize=5,
+                        ha='left', va='bottom', color='k', zorder=3)
+
+    if not view_3d:
+        ax.set_aspect('equal')
+        ax.autoscale()
+        x_min, x_max = ax.get_xlim()
+        y_min, y_max = ax.get_ylim()
+        margin = max((x_max - x_min), (y_max - y_min)) * 0.05
+        ax.set_xlim(x_min - margin, x_max + margin)
+        ax.set_ylim(y_min - margin, y_max + margin)
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title('gmsh Mesh')
+
+    # leyenda sin duplicados
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys(), fontsize=7)
+    ax.axis('equal')
+
+    if view_3d:
+        # ax.set_box_aspect([1, 1, 1])          # axis equal in 3D
+        ax.xaxis.pane.fill = False            # transparent background panes
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False
+        # ax.xaxis.pane.set_edgecolor('white')  # white pane edges
+        # ax.yaxis.pane.set_edgecolor('white')
+        # ax.zaxis.pane.set_edgecolor('white')
+        # ax.grid(False)    
+        ax.grid(True, alpha=0.8)                    # no grid
+        fig.patch.set_facecolor('white')      # white figure background
+
+    if save:
+        _save_figure(fig, save)
     plt.show()

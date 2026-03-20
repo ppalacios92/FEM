@@ -121,6 +121,10 @@ import numpy as np
 from fem import Node, Material, Membrane, Quad4
 from fem import read_mesh, build_nodes, build_elements, build_load_vector
 from fem import MPa, mm
+from fem import globalParameters
+
+globalParameters['nDoF'] = 2   # DOFs per node (2: plane, 3: solid, 6: frame)
+globalParameters['nDIM'] = 2   # Spatial dimension (2D or 3D)
 
 # Material and section
 Steel = Material(name='Steel', E=200000.0, nu=0.30, rho=0.0)
@@ -132,9 +136,9 @@ load_dictionary     = {50: {'value': 100.0, 'direction': 'x'}}
 restrain_dictionary = {101: ['r', 'r']}
 
 # Build model from gmsh mesh
-mesh                = read_mesh('mesh.msh')
-node_map, nodes     = build_nodes(mesh, restrain_dictionary)
-elements            = build_elements(mesh, node_map, section_dictionary, {4: Quad4})
+mesh                          = read_mesh('mesh.msh')
+node_map, nodes, system_nDof  = build_nodes(mesh, restrain_dictionary)
+elements                      = build_elements(mesh, node_map, section_dictionary, {4: Quad4})
 
 # Assembly and solve
 # ..(see examples/ for full workflows)
@@ -195,6 +199,15 @@ Interactive visualizations included in this library — explore shape functions,
 | <img src="docs/images/01.png" width="150"/> | <img src="docs/images/02.png" width="150"/> | <img src="docs/images/03.png" width="150"/> | <img src="docs/images/04.png" width="150"/> |
 |:---:|:---:|:---:|:---:|
 | <img src="docs/images/05.png" width="150"/> | <img src="docs/images/06.png" width="150"/> | <img src="docs/images/07.png" width="150"/> | <img src="docs/images/08.png" width="150"/> |
+
+
+## Examples
+
+A collection of problems solved with this library.
+
+| <img src="docs/images/100.png" width="150"/> | <img src="docs/images/101.png" width="150"/> | <img src="docs/images/102.png" width="150"/> |
+|:---:|:---:|:---:|
+| <img src="docs/images/103.png" width="150"/> | <img src="docs/images/104.png" width="150"/> | |
 
 ## Why not?
 

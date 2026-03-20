@@ -1,5 +1,6 @@
 import numpy as np
-
+from fem.core.parameters import globalParameters
+from fem.core.Node import Node
 
 # -- Matrix utilities ----------------------------------------------------------
 
@@ -50,10 +51,10 @@ def matrix_replace(matrix: np.ndarray,
 def build_nodes(mesh: dict, restrain_dictionary: dict = None):
     """
     Instantiate Node objects from raw mesh data.
-
     Gmsh tags are remapped to consecutive zero-based indices so that
     node.idx = [nDoF*i, ..., nDoF*i + nDoF-1].
     The number of DOFs per node is read from globalParameters['nDoF'].
+    The spatial dimension is read from globalParameters['nDIM'].
 
     Parameters
     ----------
@@ -62,13 +63,14 @@ def build_nodes(mesh: dict, restrain_dictionary: dict = None):
 
     Returns
     -------
-    node_map : dict        {gmsh_tag: Node}
-    nodes    : np.ndarray  Node objects ordered by gmsh tag
+    node_map    : dict        {gmsh_tag: Node}
+    nodes       : np.ndarray  Node objects ordered by gmsh tag
+    system_nDof : int         Total number of DOFs in the system
     """
-    from fem.core.Node import Node
-    from fem.core.parameters import globalParameters
+  
+    nDoF = globalParameters['nDoF']
+    nDIM = globalParameters['nDIM']
 
-    nDoF     = globalParameters.get('nDoF', 2)
     raw      = mesh['nodes']
     all_tags = sorted(raw.keys())
 
@@ -78,7 +80,7 @@ def build_nodes(mesh: dict, restrain_dictionary: dict = None):
     node_map = {}
     for tag in all_tags:
         i        = tag_to_index[tag]
-        coords   = list(raw[tag][:nDoF])          # take first nDoF coordinates
+        coords   = list(raw[tag][:nDIM])          # take first nDIM coordinates
         node     = Node(name=int(tag), coordinates=coords)
         node.idx = np.array([nDoF * i + j for j in range(nDoF)])
         node_map[tag] = node
@@ -86,8 +88,10 @@ def build_nodes(mesh: dict, restrain_dictionary: dict = None):
     if restrain_dictionary:
         _apply_restraints(node_map, mesh, restrain_dictionary)
 
-    nodes = np.array([node_map[t] for t in all_tags], dtype=object)
-    return node_map, nodes
+    nodes       = np.array([node_map[t] for t in all_tags], dtype=object)
+    system_nDof = len(nodes) * nDoF
+
+    return node_map, nodes, system_nDof
 
 
 def _apply_restraints(node_map: dict, mesh: dict, restrain_dictionary: dict):
@@ -155,36 +159,82 @@ def build_elements(mesh: dict, node_map: dict, section_dictionary: dict,
 
 
 # -- Load vector builders ------------------------------------------------------
-
-def build_load_vector(mesh: dict, node_map: dict, load_dictionary: dict,
-                      system_nDof: int) -> np.ndarray:
+def _direction_to_vector(direction) -> np.ndarray:
     """
-    Build the global nodal force vector from point and/or line loads.
+    Convert a direction specification to a unit vector.
+    Automatically returns [cx, cy] or [cx, cy, cz] based on globalParameters['nDoF'].
 
+    Parameters
+    ----------
+    direction : str or float
+        'x'   ->  positive X
+        '-x'  ->  negative X
+        'y'   ->  positive Y
+        '-y'  ->  negative Y
+        'z'   ->  positive Z (3D only)
+        '-z'  ->  negative Z (3D only)
+        float ->  angle in degrees from positive X axis, counterclockwise (2D only)
+
+    Returns
+    -------
+    np.ndarray  [cx, cy] or [cx, cy, cz]
+    """
+    nDoF = globalParameters['nDoF']
+
+    if nDoF == 3:
+        if direction == 'x':
+            return np.array([1.0,  0.0,  0.0])
+        elif direction == '-x':
+            return np.array([-1.0, 0.0,  0.0])
+        elif direction == 'y':
+            return np.array([0.0,  1.0,  0.0])
+        elif direction == '-y':
+            return np.array([0.0, -1.0,  0.0])
+        elif direction == 'z':
+            return np.array([0.0,  0.0,  1.0])
+        elif direction == '-z':
+            return np.array([0.0,  0.0, -1.0])
+        else:
+            rad = np.radians(float(direction))
+            return np.array([np.cos(rad), np.sin(rad), 0.0])
+    else:
+        if direction == 'x':
+            angle = 0.0
+        elif direction == '-x':
+            angle = 180.0
+        elif direction == 'y':
+            angle = 90.0
+        elif direction == '-y':
+            angle = 270.0
+        else:
+            angle = float(direction)
+        rad = np.radians(angle)
+        return np.array([np.cos(rad), np.sin(rad)])
+
+
+def build_load_vector(mesh: dict, node_map: dict, load_dictionary: dict ) -> np.ndarray:
+    """
+    Build the global nodal force vector from point, line, surface or volume loads.
     Detects physical group dimension automatically:
-    - dim=0 (points) -> point load applied directly to the node
-    - dim=1 (lines)  -> consistent line load distributed along the edge
+    - dim=0 (points)  -> point load applied directly to the node
+    - dim=1 (lines)   -> consistent line load distributed along the edge
+    - dim=2 (surface) -> total load distributed equally among all nodes
+    - dim=3 (volume)  -> total load distributed equally among all nodes
 
     Parameters
     ----------
     mesh            : dict  Output of gmshtools.read_mesh
     node_map        : dict  {gmsh_tag: Node}  from build_nodes
     load_dictionary : dict  {phys_id: {'value': float, 'direction': str or float}}
-                            direction: 'x', '-x', 'y', '-y', or angle in degrees
+                            direction: 'x', '-x', 'y', '-y', 'z', '-z', or angle in degrees
     system_nDof     : int   Total number of DOFs in the system
 
     Returns
     -------
     F : np.ndarray  (system_nDof,)  global load vector
-
-    Examples
-    --------
-    load_dictionary = {
-        50:  {'value': 1000.0, 'direction': 'y'},   # point load  [N]
-        101: {'value':   10.0, 'direction': 'x'},   # line load   [N/mm]
-    }
-    F = build_load_vector(mesh, node_map, load_dictionary, system_nDof)
     """
+    nDoF        = globalParameters['nDoF']
+    system_nDof = len(node_map) * nDoF
     F = np.zeros(system_nDof)
 
     for phys_id, load_spec in load_dictionary.items():
@@ -207,7 +257,22 @@ def build_load_vector(mesh: dict, node_map: dict, load_dictionary: dict,
             # Consistent line load — distribute using Lagrange shape functions
             _apply_line_load(F, group, node_map, load_value, d)
 
+        elif dim == 2 or dim == 3:
+            # Collect all unique nodes in the group
+            unique_nodes = set()
+            for connectivity in group['connectivity']:
+                for tag in connectivity:
+                    if tag in node_map:
+                        unique_nodes.add(tag)
+
+            # Distribute total load equally among all nodes
+            n = len(unique_nodes)
+            if n > 0:
+                for tag in unique_nodes:
+                    F[node_map[tag].idx] += (load_value / n) * d
+
     return F
+
 
 
 def _apply_line_load(F: np.ndarray, group: dict, node_map: dict,
@@ -284,38 +349,6 @@ def _consistent_line_load(node_list: list, tags: list,
         )
 
     return f_scalar
-
-
-def _direction_to_vector(direction) -> np.ndarray:
-    """
-    Convert a direction specification to a unit vector [cx, cy].
-
-    Parameters
-    ----------
-    direction : str or float
-        'x'   ->   0 degrees  (positive right)
-        '-x'  -> 180 degrees
-        'y'   ->  90 degrees  (positive up)
-        '-y'  -> 270 degrees
-        float ->  angle in degrees from positive X axis, counterclockwise
-
-    Returns
-    -------
-    np.ndarray  [cx, cy]
-    """
-    if direction == 'x':
-        angle = 0.0
-    elif direction == '-x':
-        angle = 180.0
-    elif direction == 'y':
-        angle = 90.0
-    elif direction == '-y':
-        angle = 270.0
-    else:
-        angle = float(direction)
-
-    rad = np.radians(angle)
-    return np.array([np.cos(rad), np.sin(rad)])
 
 
 # -- Legacy utilities ----------------------------------------------------------

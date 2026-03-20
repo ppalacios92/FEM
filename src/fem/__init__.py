@@ -37,6 +37,7 @@ from .utils.plotting import (
     plot_field_2d,
     plot_deformed,
     plot_loads_2d,
+    plot_gmsh_mesh,
 )
 
 # Units

@@ -19,10 +19,10 @@ fem.egg-info/
 .DS_Store
 
 # files
-src/fem/elements/CST.py
-src/fem/elements/LST.py
+# src/fem/elements/CST.py
+# src/fem/elements/LST.py
 
-src/fem/elements/Quad4.py
-src/fem/elements/Quad9.py
+# src/fem/elements/Quad4.py
+# src/fem/elements/Quad9.py
 
-src/fem/elements/Frame2D.py
+# src/fem/elements/Frame2D.py

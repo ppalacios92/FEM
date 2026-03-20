@@ -48,10 +48,10 @@ class Node:
         self.name        = name
         self.coordinates = np.array(coordinates, dtype=float)
 
-        # ── Global DOF indices ─────────────────────────────────────────────
+        #  Global DOF indices 
         self.idx = self._compute_indices()
 
-        # ── Nodal load ─────────────────────────────────────────────────────
+        #  Nodal load 
         if nodal_load is not None:
             if len(nodal_load) != nDoF:
                 raise ValueError(
@@ -61,7 +61,7 @@ class Node:
         else:
             self.nodalLoad = np.zeros(nDoF)
 
-        # ── Boundary conditions ────────────────────────────────────────────
+        #  Boundary conditions 
         if restrain is not None:
             if len(restrain) != nDoF:
                 raise ValueError(
@@ -156,7 +156,7 @@ class Node:
 
     def print_summary(self):
         """Print a formatted summary of the node properties."""
-        sep = '─' * 48
+        sep = '' * 48
         print(sep)
         print(f"Node {self.name}")
         print(f"  Coordinates : {self.coordinates}")

@@ -1,5 +1,6 @@
 # fem/parameters.py
 
 globalParameters = {
-    'nDoF': 2
+    'nDoF': 2,
+    'nDIM': 2,
 }

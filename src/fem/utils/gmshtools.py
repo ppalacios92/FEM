@@ -5,19 +5,27 @@ import numpy as np
 # -- Gmsh element type reference -----------------------------------------------
 
 GMSH_ELEMENT_INFO = {
-    #  gmsh_type    name                       n_nodes
-    1  : ('2-node line'              , 2  ),
-    2  : ('3-node triangle'          , 3  ),
-    3  : ('4-node quadrangle'        , 4  ),
-    4  : ('4-node tetrahedron'       , 4  ),
-    5  : ('8-node hexahedron'        , 8  ),
-    8  : ('3-node line'              , 3  ),
-    9  : ('6-node triangle'          , 6  ),
-    10 : ('9-node quadrilateral'     , 9  ),
-    11 : ('10-node tetrahedron'      , 10 ),
-    15 : ('1-node point'             , 1  ),
+    #  gmsh_type    name                           n_nodes
+    1  : ('2-node line'                  , 2  ),
+    2  : ('3-node triangle'              , 3  ),
+    3  : ('4-node quadrangle'            , 4  ),
+    4  : ('4-node tetrahedron'           , 4  ),
+    5  : ('8-node hexahedron'            , 8  ),
+    6  : ('6-node prism'                 , 6  ), 
+    7  : ('5-node pyramid'               , 5  ),
+    8  : ('3-node line'                  , 3  ),
+    9  : ('6-node triangle'              , 6  ),
+    10 : ('9-node quadrilateral'         , 9  ),
+    11 : ('10-node tetrahedron'          , 10 ),
+    12 : ('27-node hexahedron'           , 27 ),
+    13 : ('18-node prism'                , 18 ),
+    14 : ('14-node pyramid'              , 14 ),
+    15 : ('1-node point'                 , 1  ),
+    16 : ('8-node quadrangle'            , 8  ),
+    17 : ('20-node hexahedron'           , 20 ),
+    18 : ('15-node prism'                , 15 ),
+    19 : ('13-node pyramid'              , 13 ),
 }
-
 
 def get_element_info(gmsh_type: int) -> tuple:
     """
@@ -77,6 +85,34 @@ def read_mesh(file: str) -> dict:
     elements        = _read_elements(physical_groups)
 
     gmsh.finalize()
+
+    #  Summary
+
+    print('  MESH SUMMARY')
+
+    print(f"\n  === NODES ===  ({len(nodes)} total — showing first 3)")
+    print(f"  {'Tag':>6}   {'x':>12}   {'y':>12}   {'z':>12}")
+    print('--'*40)
+    for tag, (x, y, z) in list(nodes.items())[:3]:
+        print(f"  {tag:>6}   {x:>12.4f}   {y:>12.4f}   {z:>12.4f}")
+    print('--'*40)
+
+    print(f"\n  === PHYSICAL GROUPS ===  ({len(physical_groups)} total)")
+    print(f"  {'ID':>6}   {'Dim':>4}   {'Name'}")
+    print('--'*40)
+    for phys_id, info in physical_groups.items():
+        print(f"  {phys_id:>6}   {info['dim']:>4}   '{info['name']}'")
+    print('--'*40)
+
+    print(f"\n  === ELEMENTS ===  ({len(elements)} groups)")
+    print(f"  {'ID':>6}   {'Dim':>4}   {'Type':>6}   {'Nodes/el':>8}   {'N elements':>10}   {'Name'}")
+    print('--'*40)
+    for phys_id, group in elements.items():
+        name = physical_groups[phys_id]['name']
+        print(f"  {phys_id:>6}   {group['dim']:>4}   {group['gmsh_type']:>6}   "
+              f"{group['n_nodes']:>8}   {len(group['element_tags']):>10}   '{name}'")
+    print('--'*40)
+    print()
 
     return {
         'nodes'           : nodes,
