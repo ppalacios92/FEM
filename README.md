@@ -205,7 +205,9 @@ Interactive visualizations included in this library — explore shape functions,
 
 A collection of problems solved with this library.
 
-| <img src="docs/images/100.png" width="250"/> | <img src="docs/images/101.png" width="250"/> | <img src="docs/images/102.png" width="250"/> | <img src="docs/images/103.png" width="250"/> | <img src="docs/images/104.png" width="250"/> | |
+| <img src="docs/images/100.png" width="150"/> | <img src="docs/images/101.png" width="150"/> | <img src="docs/images/102.png" width="150"/> |
+|:---:|:---:|:---:|
+| <img src="docs/images/103.png" width="150"/> | <img src="docs/images/104.png" width="150"/> | <img src="docs/images/105.png" width="150"/> |
 
 ## Why not?
 
