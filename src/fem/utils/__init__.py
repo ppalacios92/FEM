@@ -7,6 +7,7 @@ from .functions import (
     build_nodes,
     build_elements,
     build_load_vector,
+    build_plot_elements,
 )
 from .gmshtools import (
     read_mesh,
@@ -34,6 +35,7 @@ __all__ = [
     'build_nodes',
     'build_elements',
     'build_load_vector',
+    'build_plot_elements',
     # Gmsh tools
     'read_mesh',
     'get_element_info',

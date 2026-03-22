@@ -74,3 +74,5 @@ Physical Volume("restrain", 275) = {18, 17};
 
 //+
 Physical Volume("load", 276) = {19};
+//+
+Physical Curve("support_out_of_plane", 277) = {234, 235, 236, 233};

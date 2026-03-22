@@ -157,7 +157,36 @@ def build_elements(mesh: dict, node_map: dict, section_dictionary: dict,
 
     return np.array(elements, dtype=object)
 
+def build_plot_elements(mesh: dict, node_map: dict, phys_ids: list) -> np.ndarray:
+    """
+    Build lightweight element objects for plotting.
+    Each element has only element_tag and nodes attributes.
 
+    Parameters
+    ----------
+    mesh     : dict       Output of read_mesh
+    node_map : dict       {gmsh_tag: Node} from build_nodes
+    phys_ids : list       Physical group IDs to include
+
+    Returns
+    -------
+    np.ndarray of SimpleNamespace objects with:
+        .element_tag  : int
+        .nodes        : list of Node
+    """
+    from types import SimpleNamespace
+    elements = []
+    for phys_id in phys_ids:
+        if phys_id not in mesh['elements']:
+            continue
+        group = mesh['elements'][phys_id]
+        for elem_tag, conn in zip(group['element_tags'], group['connectivity']):
+            elements.append(SimpleNamespace(
+                element_tag = elem_tag,
+                nodes       = [node_map[tag] for tag in conn]
+            ))
+    return np.array(elements, dtype=object)
+    
 # -- Load vector builders ------------------------------------------------------
 def _direction_to_vector(direction) -> np.ndarray:
     """

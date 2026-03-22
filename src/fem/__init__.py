@@ -20,6 +20,7 @@ from .utils.functions import (
     build_nodes,
     build_elements,
     build_load_vector,
+    build_plot_elements,
 )
 from .utils.gmshtools import (
     read_mesh,
