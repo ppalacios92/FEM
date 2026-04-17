@@ -171,6 +171,35 @@ def _save_figure(fig, save: str):
     fig.savefig(save, dpi=300, bbox_inches='tight')
 
 
+# Number of corner nodes per gmsh element type — used ONLY to build clean
+# polygons for plot_gmsh_mesh. Mid-side / centre nodes are excluded from
+# the polygon outline so the element shape renders correctly.
+# Node and label plotting always shows ALL nodes (no filtering).
+#
+#   type  2  — 3-node triangle  (CST)       → 3 corners
+#   type  9  — 6-node triangle  (LST)       → 3 corners  [0..2]
+#   type  3  — 4-node quad      (Quad4)     → 4 corners
+#   type 16  — 8-node quad      (Serendip.) → 4 corners  [0..3]
+#   type 10  — 9-node quad      (Quad9)     → 4 corners  [0..3]
+#
+_GMSH_CORNER_COUNT = {
+    2:  3,   # tri3  / CST
+    9:  3,   # tri6  / LST
+    3:  4,   # quad4
+    16: 4,   # quad8 (serendipity)
+    10: 4,   # quad9
+}
+
+
+def _get_corner_count(gmsh_type: int, n_nodes: int) -> int:
+    """
+    Return the number of corner nodes for a given gmsh element type.
+    Used only for polygon construction — NOT for filtering node plots.
+    Falls back to n_nodes for unknown / linear element types.
+    """
+    return _GMSH_CORNER_COUNT.get(gmsh_type, n_nodes)
+
+
 # --------------------------------------
 def plot_mesh(nodes=None,
               elements=None,
@@ -784,9 +813,13 @@ def plot_gmsh_mesh(mesh: dict,
                    figsize: tuple = (12, 8),
                    save: str = None):
 
-    nodes    = mesh['nodes']
-    elements = mesh['elements']
-    phys_grp = mesh['physical_groups']
+    # nodes    = mesh['nodes']
+    # elements = mesh['elements']
+    # phys_grp = mesh['physical_groups']
+    nodes    = mesh.nodes
+    elements = mesh.elements
+    phys_grp = mesh._physical_raw
+
 
     if view_3d:
         fig = plt.figure(figsize=figsize)
@@ -833,12 +866,19 @@ def plot_gmsh_mesh(mesh: dict,
             polygons_3d = []
             centroids   = []
 
+            # Use only corner nodes for the polygon outline.
+            # Higher-order elements (LST, Quad9…) store mid-side / centre
+            # nodes after the corners — using all nodes deforms the polygon.
+            gmsh_type = elem_data.get('gmsh_type', None)
+            n_corners = _get_corner_count(gmsh_type, n_nodes) if gmsh_type else n_nodes
+
             for i, conn in enumerate(connectivity):
+                corner_conn = conn[:n_corners]
                 if view_3d:
-                    c = np.array([[nodes[tag][0], nodes[tag][1], nodes[tag][2]] for tag in conn])
+                    c = np.array([[nodes[tag][0], nodes[tag][1], nodes[tag][2]] for tag in corner_conn])
                     polygons_3d.append(c)
                 else:
-                    c = np.array([[nodes[tag][0], nodes[tag][1]] for tag in conn])
+                    c = np.array([[nodes[tag][0], nodes[tag][1]] for tag in corner_conn])
                     polygons.append(c)
                 if show_element_labels:
                     centroids.append((c.mean(axis=0), elem_data['element_tags'][i]))

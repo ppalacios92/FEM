@@ -6,19 +6,20 @@ from .functions import (
     get_line_load_global_vector,
     build_nodes,
     build_elements,
-    build_load_vector,
     build_plot_elements,
+    plan,
+    build_load_vector,
 )
 from .gmshtools import (
     read_mesh,
     get_element_info,
+    GMSHtools,
 )
 from .visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average,
 )
-
 from .plotting import (
     plot_mesh,
     plot_field_2d,
@@ -32,13 +33,15 @@ __all__ = [
     'matrix_extract',
     'matrix_replace',
     # FEM builders
+    'plan',
     'build_nodes',
     'build_elements',
-    'build_load_vector',
     'build_plot_elements',
+    'build_load_vector',
     # Gmsh tools
     'read_mesh',
     'get_element_info',
+    'GMSHtools',
     # Legacy
     'get_nodes_from_physical_id',
     'get_line_load_global_vector',

@@ -39,7 +39,7 @@ class Truss2D:
         ----------
         node_i        : Node      Start node (nDoF = 3)
         node_j        : Node      End node   (nDoF = 3)
-        material      : Material  Material object with attribute E
+        material      : Material  Material object with attributes E, rho
         A             : float     Cross-sectional area [m^2]
         print_summary : bool      Print element summary on creation.
         """
@@ -48,6 +48,9 @@ class Truss2D:
         self.material = material
         self.A        = A
         self.E        = material.get_Emat('frame')
+
+        # Self-weight per unit length: w_self = rho * A
+        self.w_self = material.rho * A
 
         # Geometry
         self.L, self.angle, self.angle_deg = self._compute_geometry()
@@ -58,6 +61,9 @@ class Truss2D:
         self.kl  = self._local_stiffness()
         self.Tlg = self._local_global_transformation()
         self.kg  = self._global_stiffness()
+
+        # Fixed-end force vector in global frame
+        self.fe = self._compute_fixed_end_forces()
 
         # DOF indices and restraints
         self.idx      = np.concatenate([node_i.idx, node_j.idx]).astype(int)
@@ -97,31 +103,23 @@ class Truss2D:
 
         The truss carries axial load only. Bending terms are zero,
         keeping the same 3x3 structure as Frame2D for pipeline compatibility.
-        The zeros propagate through Tbl and Tlg so that kl and kg are
-        automatically 6x6 with zero bending rows and columns.
 
             kb = [ EA/L   0     0  ]
                  [  0     0     0  ]
                  [  0     0     0  ]
         """
         E, A, L = self.E, self.A, self.L
+        self.I=1e-10
+        I=self.I
         return np.array([
-            [E*A/L,  0,  0],
-            [  0,    0,  0],
-            [  0,    0,  0]
+            [E*A/L,       0,          0      ],
+            [  0,    4*E*I/L,    2*E*I/L    ],
+            [  0,    2*E*I/L,    4*E*I/L    ]
         ])
-
     def _basic_local_transformation(self) -> np.ndarray:
         """
         Basic-to-local transformation Tbl (3x6).
-
-        Identical to Frame2D. Rows 1 and 2 produce zero forces because
-        the corresponding kb entries are zero.
-
-            q0 (axial)      =  -u_i  +  u_j
-            q1 (rotation_i) =  (1/L)*v_i  + theta_i  - (1/L)*v_j
-            q2 (rotation_j) =  (1/L)*v_i             - (1/L)*v_j  + theta_j
-
+        Identical to Frame2D.
         Columns: [u_i, v_i, theta_i, u_j, v_j, theta_j]
         """
         L = self.L
@@ -136,18 +134,7 @@ class Truss2D:
         return self.Tbl.T @ self.kb @ self.Tbl
 
     def _local_global_transformation(self) -> np.ndarray:
-        """
-        Local-to-global transformation Tlg (6x6).
-
-        Identical to Frame2D.
-
-            [ c   s  0  0  0  0 ]
-            [-s   c  0  0  0  0 ]
-            [ 0   0  1  0  0  0 ]
-            [ 0   0  0  c  s  0 ]
-            [ 0   0  0 -s  c  0 ]
-            [ 0   0  0  0  0  1 ]
-        """
+        """Local-to-global transformation Tlg (6x6). Identical to Frame2D."""
         c = np.cos(self.angle)
         s = np.sin(self.angle)
         return np.array([
@@ -162,6 +149,33 @@ class Truss2D:
     def _global_stiffness(self) -> np.ndarray:
         """Global stiffness matrix kg (6x6): kg = Tlg^T · kl · Tlg"""
         return self.Tlg.T @ self.kl @ self.Tlg
+
+    # --------------------------------------------------------------------------
+    # Fixed-end force vector (self-weight)
+    # --------------------------------------------------------------------------
+
+    def _compute_fixed_end_forces(self) -> np.ndarray:
+        """
+        Compute the element fixed-end force vector in the global frame.
+        Truss carries axial load only — self-weight projected onto axial axis.
+        No transverse fixed-end forces (no bending).
+
+        Returns
+        -------
+        fe : np.ndarray (6,)  Fixed-end forces in global DOF order.
+        """
+        s = np.sin(self.angle)
+        w_axial = self.w_self * s
+        L = self.L
+        f_local = -1*np.array([
+            -w_axial * L / 2,
+            0.0,
+            0.0,
+            -w_axial * L / 2,
+            0.0,
+            0.0,
+        ])
+        return self.Tlg.T @ f_local
 
     # --------------------------------------------------------------------------
     # Force recovery
@@ -222,6 +236,29 @@ class Truss2D:
         return float(results['fe_basic'][0])
 
     # --------------------------------------------------------------------------
+    # Internal forces
+    # --------------------------------------------------------------------------
+
+    def get_internal_forces(self, u: np.ndarray, n_points: int = 50):
+        """
+        Compute axial force N(x), shear V(x) and bending moment M(x).
+        Truss carries axial only — V and M are zero everywhere.
+
+        Returns
+        -------
+        x  : np.ndarray (n,)   Positions along element [0, L]
+        N  : np.ndarray (n,)   Axial force  (positive = tension)
+        V  : np.ndarray (n,)   Shear force  (always zero)
+        M  : np.ndarray (n,)   Bending moment (always zero)
+        """
+        N_val = self.get_axial_force(u)
+        x     = np.linspace(0, self.L, n_points)
+        N     = np.full(n_points, N_val)
+        V     = np.zeros(n_points)
+        M     = np.zeros(n_points)
+        return x, N, V, M
+
+    # --------------------------------------------------------------------------
     # Deformed shape
     # --------------------------------------------------------------------------
 
@@ -229,11 +266,6 @@ class Truss2D:
         """
         Compute the deformed shape using linear Lagrange interpolation.
         Truss has no bending so both u and v vary linearly along the element.
-
-        Parameters
-        ----------
-        u        : np.ndarray  Global displacement vector
-        n_points : int         Number of interpolation points
 
         Returns
         -------
@@ -249,7 +281,6 @@ class Truss2D:
         xi = np.linspace(0, 1, n_points)
         L  = self.L
 
-        # Linear Lagrange shape functions (no bending, no Hermite needed)
         N1 = 1 - xi
         N2 = xi
 
@@ -283,16 +314,32 @@ class Truss2D:
         else:
             ax.plot(x, y, 'o', color='tab:red', markersize=size/2, zorder=4)
 
+
     def plot_geometry(self, ax=None, show_nodes: bool = True,
                       node_labels: bool = False, element_label: bool = False,
-                      color: str = 'k', lw: float = 2.0):
-        """Plot undeformed element geometry."""
+                      color: str = 'tab:orange', lw: float = 2.0,
+                      color_by_section: bool = False,
+                      section_colors: dict = None):
+        """
+        Plot undeformed element geometry.
+        
+        Parameters
+        ----------
+        color_by_section : bool   If True, color is determined by section area
+        section_colors   : dict   {area_value: color} mapping. 
+                                  e.g. {A_column: 'steelblue', A_beam: 'tomato', A_diag: 'seagreen'}
+        """
         if ax is None:
             _, ax = plt.subplots()
 
+        if color_by_section and section_colors is not None:
+            plot_color = section_colors.get(self.A, color)
+        else:
+            plot_color = color
+
         xi = self.node_i.coordinates
         xj = self.node_j.coordinates
-        ax.plot([xi[0], xj[0]], [xi[1], xj[1]], color=color, lw=lw)
+        ax.plot([xi[0], xj[0]], [xi[1], xj[1]], color=plot_color, lw=lw)
 
         if show_nodes:
             self._draw_support(ax, self.node_i)
@@ -306,18 +353,12 @@ class Truss2D:
 
         ax.grid(False)
         return ax
+        
 
     def plot_deformed(self, u: np.ndarray, scale: float = 1.0,
                       ax=None, n_points: int = 50,
                       color: str = 'steelblue', lw: float = 1.5):
-        """
-        Plot deformed shape of the element.
-
-        Parameters
-        ----------
-        u     : global displacement vector
-        scale : amplification factor for displacements
-        """
+        """Plot deformed shape of the element."""
         if ax is None:
             _, ax = plt.subplots()
 
@@ -334,12 +375,31 @@ class Truss2D:
                    scale: float = 1.0, n_points: int = 50,
                    color: str = 'tomato', fill: bool = True):
         """Plot axial force diagram along the element."""
+        ax = self._plot_diagram(u, 'N', ax, scale, n_points, color, fill)
+        return ax
+
+    def plot_shear(self, u: np.ndarray, ax=None,
+                   scale: float = 1.0, n_points: int = 50,
+                   color: str = 'steelblue', fill: bool = True):
+        """Shear force diagram — always zero for truss."""
+        ax = self._plot_diagram(u, 'V', ax, scale, n_points, color, fill)
+        return ax
+
+    def plot_moment(self, u: np.ndarray, ax=None,
+                    scale: float = 1.0, n_points: int = 50,
+                    color: str = 'seagreen', fill: bool = True):
+        """Bending moment diagram — always zero for truss."""
+        ax = self._plot_diagram(u, 'M', ax, scale, n_points, color, fill)
+        return ax
+
+    def _plot_diagram(self, u, diagram_type, ax, scale, n_points, color, fill):
+        """Internal helper to draw N / V / M diagrams. Identical to Frame2D."""
         if ax is None:
             _, ax = plt.subplots()
 
-        N      = self.get_axial_force(u)
-        x      = np.linspace(0, self.L, n_points)
-        values = np.full(n_points, N * scale)
+        x, N, V, M = self.get_internal_forces(u, n_points=n_points)
+        diagrams = {'N': N, 'V': V, 'M': M}
+        values   = diagrams[diagram_type] * scale
 
         c = np.cos(self.angle)
         s = np.sin(self.angle)
@@ -359,8 +419,8 @@ class Truss2D:
                 np.concatenate([y_base, y_diag[::-1]]),
                 color=color, alpha=0.25)
 
-        ax.text(x_diag[0],  y_diag[0],  f'{N:.2f}', fontsize=7)
-        ax.text(x_diag[-1], y_diag[-1], f'{N:.2f}', fontsize=7)
+        ax.text(x_diag[0],  y_diag[0],  f'{values[0]/scale:.2f}',  fontsize=7)
+        ax.text(x_diag[-1], y_diag[-1], f'{values[-1]/scale:.2f}', fontsize=7)
         ax.grid(False)
         return ax
 
@@ -375,8 +435,10 @@ class Truss2D:
         print(f"Truss2D  :  node {self.node_i.name} -> node {self.node_j.name}")
         print(f"  Length      : {self.L:.4f} m")
         print(f"  Angle       : {self.angle_deg:.4f} deg")
-        print(f"  Material    : {self.material.name}  (E={self.E:.3e})")
+        print(f"  Material    : {self.material.name}  (E={self.E:.3e}, rho={self.material.rho:.3e})")
         print(f"  A           : {self.A:.3e} m^2")
+        print(f"  Self-weight : {self.w_self:.6f} kN/m")
+        print(f"  fe (global) : {np.round(self.fe, 4)}")
         print(f"  DOF indices : {self.idx}")
         print(f"  Restraints  : {self.restrain}")
         print(f"\n  kb  (basic stiffness 3x3):\n{np.round(self.kb,  4)}")

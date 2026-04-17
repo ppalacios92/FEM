@@ -54,7 +54,7 @@ class Frame2D:
         self.E         = material.get_Emat('frame')
 
         # Self-weight per unit length: w_self = rho * g * A  [kN/m]
-        self.w_self    = material.rho * g * A
+        self.w_self    = material.rho * A
 
         # Additional distributed load (local y, user-supplied)
         self.w_applied = w
@@ -206,7 +206,7 @@ class Frame2D:
         w_total = w_sw_perp + self.w_applied
 
         L = self.L
-        f_local = np.array([
+        f_local = -1*np.array([
             -w_sw_axial * L / 2,
             -w_total    * L / 2,
             -w_total    * L**2 / 12,
@@ -411,33 +411,45 @@ class Frame2D:
         else:
             ax.plot(x, y, 'o', color='tab:red', markersize=size/2, zorder=4)
 
-
     def plot_geometry(self, ax=None, show_nodes: bool = True,
                       node_labels: bool = False, element_label: bool = False,
-                      color: str = 'k', lw: float = 2.0):
-        """Plot undeformed element geometry."""
+                      color: str = 'tab:blue', lw: float = 2.0,
+                      color_by_section: bool = False,
+                      section_colors: dict = None):
+        """
+        Plot undeformed element geometry.
+        
+        Parameters
+        ----------
+        color_by_section : bool   If True, color is determined by section area
+        section_colors   : dict   {area_value: color} mapping. 
+                                  e.g. {A_column: 'steelblue', A_beam: 'tomato', A_diag: 'seagreen'}
+        """
         if ax is None:
             _, ax = plt.subplots()
 
+        if color_by_section and section_colors is not None:
+            plot_color = section_colors.get(self.A, color)
+        else:
+            plot_color = color
+
         xi = self.node_i.coordinates
         xj = self.node_j.coordinates
-        ax.plot([xi[0], xj[0]], [xi[1], xj[1]], color=color, lw=lw)
+        ax.plot([xi[0], xj[0]], [xi[1], xj[1]], color=plot_color, lw=lw)
 
         if show_nodes:
             self._draw_support(ax, self.node_i)
             self._draw_support(ax, self.node_j)
-            # self.node_i.plotGeometry(ax, text=node_labels)
-            # self.node_j.plotGeometry(ax, text=node_labels)
-
 
         if element_label:
             xm = 0.5 * (xi + xj)
             ax.text(xm[0], xm[1],
-                    f'{self.node_i.name}→{self.node_j.name}',
+                    f'{self.node_i.name}->{self.node_j.name}',
                     fontsize=9, ha='center', va='bottom')
-            
+
         ax.grid(False)
         return ax
+    
 
     def plot_deformed(self, u: np.ndarray, scale: float = 1.0,
                       ax=None, n_points: int = 50,

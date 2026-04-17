@@ -1,3 +1,7 @@
+# =============================================================================
+# Based on the course by José Antonio Abell, Universidad de los Andes, Chile
+# =============================================================================
+
 import gmsh
 import numpy as np
 
@@ -11,7 +15,7 @@ GMSH_ELEMENT_INFO = {
     3  : ('4-node quadrangle'            , 4  ),
     4  : ('4-node tetrahedron'           , 4  ),
     5  : ('8-node hexahedron'            , 8  ),
-    6  : ('6-node prism'                 , 6  ), 
+    6  : ('6-node prism'                 , 6  ),
     7  : ('5-node pyramid'               , 5  ),
     8  : ('3-node line'                  , 3  ),
     9  : ('6-node triangle'              , 6  ),
@@ -26,6 +30,9 @@ GMSH_ELEMENT_INFO = {
     18 : ('15-node prism'                , 15 ),
     19 : ('13-node pyramid'              , 13 ),
 }
+
+
+# -- Utility -------------------------------------------------------------------
 
 def get_element_info(gmsh_type: int) -> tuple:
     """
@@ -52,73 +59,156 @@ def get_element_info(gmsh_type: int) -> tuple:
     return GMSH_ELEMENT_INFO[gmsh_type]
 
 
-def read_mesh(file: str) -> dict:
-    """
-    Read a gmsh mesh file and return all raw mesh data.
+# -- Main mesh class -----------------------------------------------------------
 
-    Opens and closes gmsh once. All coordinates are stored as (x, y, z)
-    regardless of problem dimension. No FEM objects are created here.
+class GMSHtools:
+    """
+    Read a gmsh mesh file and expose its contents as a structured object.
+
+    This class only handles geometry and connectivity. No FEM objects,
+    no DOF numbering, no boundary conditions, no load vectors.
+    All of that belongs in functions.py.
 
     Parameters
     ----------
     file : str
         Path to the .msh file.
 
-    Returns
-    -------
-    mesh : dict with keys:
-        'nodes'           : dict  {tag: (x, y, z)}
-        'physical_groups' : dict  {phys_id: {'name': str, 'dim': int}}
-        'elements'        : dict  {phys_id: {
-                                'dim'         : int,
-                                'gmsh_type'   : int,
-                                'n_nodes'     : int,
-                                'element_tags': list[int],
-                                'connectivity': list[list[int]]
-                            }}
+    Attributes
+    ----------
+    nodes : dict  {tag: (x, y, z)}
+        Raw node coordinates for every node in the mesh.
+
+    elements : dict  {phys_id: {
+                    'dim'         : int,
+                    'gmsh_type'   : int,
+                    'n_nodes'     : int,
+                    'element_tags': list[int],
+                    'connectivity': list[list[int]]
+                }}
+        Raw element connectivity grouped by physical group id.
+
+    physical_groups : dict  {phys_id: PhysicalGroup, name: PhysicalGroup}
+        Physical groups accessible by integer id or by name string.
+
+    Examples
+    --------
+    mesh = GMSHtools('model.msh')
+
+    mesh.nodes                          # {tag: (x, y, z)}
+    mesh.elements                       # {phys_id: raw connectivity}
+    mesh.physical_groups[201]           # PhysicalGroup by id
+    mesh.physical_groups['Head_5mm']    # PhysicalGroup by name
+    mesh.physical_groups[201].nodes     # {tag: (x,y,z)} in that group
+    mesh.physical_groups[201].elements  # raw element data for that group
+    mesh.physical_groups[201].dim       # 1 or 2
     """
-    gmsh.initialize()
-    gmsh.open(file)
 
-    nodes           = _read_nodes()
-    physical_groups = _read_physical_groups()
-    elements        = _read_elements(physical_groups)
+    def __init__(self, file: str):
+        gmsh.initialize()
+        gmsh.open(file)
 
-    gmsh.finalize()
+        self.nodes           = _read_nodes()
+        self._physical_raw   = _read_physical_groups()
+        self.elements        = _read_elements(self._physical_raw)
+        self.physical_groups = self._build_physical_groups()
 
-    #  Summary
+        gmsh.finalize()
 
-    print('  MESH SUMMARY')
+        self._print_summary()
 
-    print(f"\n  === NODES ===  ({len(nodes)} total — showing first 3)")
-    print(f"  {'Tag':>6}   {'x':>12}   {'y':>12}   {'z':>12}")
-    print('--'*40)
-    for tag, (x, y, z) in list(nodes.items())[:3]:
-        print(f"  {tag:>6}   {x:>12.4f}   {y:>12.4f}   {z:>12.4f}")
-    print('--'*40)
+    def _build_physical_groups(self) -> dict:
+        """
+        Build the physical_groups dict accessible by id and by name.
 
-    print(f"\n  === PHYSICAL GROUPS ===  ({len(physical_groups)} total)")
-    print(f"  {'ID':>6}   {'Dim':>4}   {'Name'}")
-    print('--'*40)
-    for phys_id, info in physical_groups.items():
-        print(f"  {phys_id:>6}   {info['dim']:>4}   '{info['name']}'")
-    print('--'*40)
+        Returns
+        -------
+        dict  {phys_id: PhysicalGroup, name: PhysicalGroup}
+            Same object is registered under both keys.
+        """
+        groups = {}
+        for pg_id, pg_data in self._physical_raw.items():
+            name      = pg_data['name']
+            dim       = pg_data['dim']
+            elem_data = self.elements.get(pg_id, {})
 
-    print(f"\n  === ELEMENTS ===  ({len(elements)} groups)")
-    print(f"  {'ID':>6}   {'Dim':>4}   {'Type':>6}   {'Nodes/el':>8}   {'N elements':>10}   {'Name'}")
-    print('--'*40)
-    for phys_id, group in elements.items():
-        name = physical_groups[phys_id]['name']
-        print(f"  {phys_id:>6}   {group['dim']:>4}   {group['gmsh_type']:>6}   "
-              f"{group['n_nodes']:>8}   {len(group['element_tags']):>10}   '{name}'")
-    print('--'*40)
-    print()
+            node_tags = set()
+            for conn in elem_data.get('connectivity', []):
+                node_tags.update(conn)
+            nodes_in_group = {t: self.nodes[t] for t in node_tags
+                              if t in self.nodes}
 
-    return {
-        'nodes'           : nodes,
-        'physical_groups' : physical_groups,
-        'elements'        : elements,
-    }
+            obj            = _PhysicalGroup(pg_id, name, dim,
+                                            elem_data, nodes_in_group)
+            groups[pg_id]  = obj
+            groups[name]   = obj
+
+        return groups
+
+    def _print_summary(self):
+        pg_raw = self._physical_raw
+
+        print('  MESH SUMMARY')
+
+        print(f"\n  === NODES ===  ({len(self.nodes)} total — showing first 3)")
+        print(f"  {'Tag':>6}   {'x':>12}   {'y':>12}   {'z':>12}")
+        print('--' * 40)
+        for tag, (x, y, z) in list(self.nodes.items())[:3]:
+            print(f"  {tag:>6}   {x:>12.4f}   {y:>12.4f}   {z:>12.4f}")
+        print('--' * 40)
+
+        print(f"\n  === PHYSICAL GROUPS ===  ({len(pg_raw)} total)")
+        print(f"  {'ID':>6}   {'Dim':>4}   {'Name'}")
+        print('--' * 40)
+        for phys_id, info in pg_raw.items():
+            print(f"  {phys_id:>6}   {info['dim']:>4}   '{info['name']}'")
+        print('--' * 40)
+
+        print(f"\n  === ELEMENTS ===  ({len(self.elements)} groups)")
+        print(f"  {'ID':>6}   {'Dim':>4}   {'Type':>6}   {'Nodes/el':>8}"
+              f"   {'N elements':>10}   {'Name'}")
+        print('--' * 40)
+        for phys_id, group in self.elements.items():
+            name = pg_raw[phys_id]['name']
+            print(f"  {phys_id:>6}   {group['dim']:>4}   {group['gmsh_type']:>6}"
+                  f"   {group['n_nodes']:>8}   {len(group['element_tags']):>10}"
+                  f"   '{name}'")
+        print('--' * 40)
+        print()
+
+    def __repr__(self):
+        n_pg = len(self._physical_raw)
+        return (f"GMSHtools | nodes={len(self.nodes)}"
+                f" | physical_groups={n_pg}")
+
+
+# -- Physical group container --------------------------------------------------
+
+class _PhysicalGroup:
+    """
+    Container for a single gmsh physical group.
+
+    Attributes
+    ----------
+    id       : int    Gmsh physical group id.
+    name     : str    Physical group name as defined in gmsh.
+    dim      : int    Dimension (0=point, 1=line, 2=surface, 3=volume).
+    elements : dict   Raw element data (gmsh_type, connectivity, etc.).
+    nodes    : dict   {tag: (x,y,z)} of all nodes in this group.
+    """
+
+    def __init__(self, id, name, dim, elements, nodes):
+        self.id       = id
+        self.name     = name
+        self.dim      = dim
+        self.elements = elements
+        self.nodes    = nodes
+
+    def __repr__(self):
+        n_el = len(self.elements.get('connectivity', []))
+        return (f"PhysicalGroup(id={self.id}, name='{self.name}', "
+                f"dim={self.dim}, n_elements={n_el}, "
+                f"n_nodes={len(self.nodes)})")
 
 
 # -- Internal readers ----------------------------------------------------------
@@ -195,16 +285,16 @@ def _read_elements(physical_groups: dict) -> dict:
         n_nodes          = None
 
         for ent_tag in entity_tags:
-            elem_types, elem_tags_list, node_tags_list = gmsh.model.mesh.getElements(dim, ent_tag)
+            elem_types, elem_tags_list, node_tags_list = \
+                gmsh.model.mesh.getElements(dim, ent_tag)
 
             if len(elem_types) == 0:
                 continue
 
-            # Use first element type found — mixed groups not supported
-            et            = int(elem_types[0])
-            elem_tags     = elem_tags_list[0]
-            node_tags     = node_tags_list[0]
-            _, nn         = get_element_info(et)
+            et        = int(elem_types[0])
+            elem_tags = elem_tags_list[0]
+            node_tags = node_tags_list[0]
+            _, nn     = get_element_info(et)
 
             if gmsh_type is None:
                 gmsh_type = et
@@ -227,3 +317,28 @@ def _read_elements(physical_groups: dict) -> dict:
         }
 
     return elements
+
+
+# -- Backward compatibility ----------------------------------------------------
+
+def read_mesh(file: str) -> dict:
+    """
+    Read a gmsh mesh file and return all raw mesh data as a plain dict.
+
+    Kept for backward compatibility. New code should use GMSHtools(file).
+
+    Parameters
+    ----------
+    file : str
+        Path to the .msh file.
+
+    Returns
+    -------
+    dict with keys: 'nodes', 'physical_groups', 'elements'
+    """
+    mesh = GMSHtools(file)
+    return {
+        'nodes'           : mesh.nodes,
+        'physical_groups' : mesh._physical_raw,
+        'elements'        : mesh.elements,
+    }

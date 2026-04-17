@@ -19,20 +19,22 @@ from .utils.functions import (
     get_line_load_global_vector,
     build_nodes,
     build_elements,
-    build_load_vector,
     build_plot_elements,
+    plan,
+    build_load_vector,
 )
 from .utils.gmshtools import (
     read_mesh,
     get_element_info,
+    GMSHtools,
 )
-# Visualization utilities
+# Visualization
 from .utils.visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average,
 )
-# plotting 
+# Plotting
 from .utils.plotting import (
     plot_mesh,
     plot_field_2d,
@@ -40,40 +42,29 @@ from .utils.plotting import (
     plot_loads_2d,
     plot_gmsh_mesh,
 )
-
 # Units
 from .utils.units import (
-    # Length
     mm, cm, m, km, inches, ft, yard, mile,
-    # Force
     N, kN, kgf, tf, dyne, lbf, kip,
-    # Mass
     tonne, kg, mg, lb, oz,
-    # Pressure
     MPa, GPa, kPa, Pa, kgf_cm2, ksi,
-    # Energy
     J, kJ, mJ, cal, kcal, eV, Wh, kWh,
-    # Power
     W, kW, MW, HP,
-    # Time
     s, minutes, h, day, week, month, year,
-    # Acceleration
     g,
-    # Angle
     radian, degree,
-    # Temperature
     K, C, F,
 )
 # Global parameters
 from .core.parameters import globalParameters
 
-__version__ = "0.1.0"
+__version__ = "1.1.0"
 
 print("""
   FEM -- Finite Element Method for Structural Analysis
   Based on the course by Prof. José Abell
 
-  Version 0.1.0                        © 2026 All Rights Reserved
+  Version 1.1.0                        © 2026 All Rights Reserved
 
   Repository  :  https://github.com/ppalacios92/FEM
   Web Book    :  https://books.nmorabowen.com/books/fem

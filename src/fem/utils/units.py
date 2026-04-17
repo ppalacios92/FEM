@@ -75,7 +75,7 @@ month  = 30 * day    # [s]
 year   = 365.25 * day # [s]
 
 # Acceleration
-g = 9.81 * mm / s**2  # [mm/s^2] gravitational acceleration
+g = 9.81 * m / s**2  # [mm/s^2] gravitational acceleration
 
 # Angle
 radian = 1                          # [rad]
