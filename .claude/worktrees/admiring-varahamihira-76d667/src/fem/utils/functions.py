@@ -350,7 +350,7 @@ def build_plot_elements(mesh, node_map: dict, phys_ids: list) -> np.ndarray:
 
     Parameters
     ----------
-    mesh     : GMSHtools or dict
+    mesh     : GMSHtools
     node_map : dict       {gmsh_tag: Node} from plan()
     phys_ids : list       Physical group IDs to include
 
@@ -447,7 +447,7 @@ def build_load_vector(mesh,
 
     Parameters
     ----------
-    mesh            : GMSHtools or dict
+    mesh            : GMSHtools
     node_map        : dict   {gmsh_tag: Node}  from plan().
     load_dictionary : dict   {phys_id: {'value': float, 'direction': str or float}}
     system_nDof     : int    Total number of DOFs in the system.

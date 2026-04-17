@@ -2,16 +2,13 @@
 from .functions import (
     matrix_extract,
     matrix_replace,
-    get_nodes_from_physical_id,
     get_line_load_global_vector,
-    build_nodes,
     build_elements,
     build_plot_elements,
     plan,
     build_load_vector,
 )
 from .gmshtools import (
-    read_mesh,
     get_element_info,
     GMSHtools,
 )
@@ -34,16 +31,13 @@ __all__ = [
     'matrix_replace',
     # FEM builders
     'plan',
-    'build_nodes',
     'build_elements',
     'build_plot_elements',
     'build_load_vector',
     # Gmsh tools
-    'read_mesh',
     'get_element_info',
     'GMSHtools',
-    # Legacy
-    'get_nodes_from_physical_id',
+    # Frame2D load utility
     'get_line_load_global_vector',
     # Visualization
     'add_element_data_view',

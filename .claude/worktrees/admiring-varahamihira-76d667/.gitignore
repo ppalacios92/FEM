@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+fem.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Gmsh
+*.msh
+*.geo_unrolled
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# files
+# src/fem/elements/CST.py
+# src/fem/elements/LST.py
+
+# src/fem/elements/Quad4.py
+# src/fem/elements/Quad9.py
+
+# src/fem/elements/Frame2D.py

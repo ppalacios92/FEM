@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find '/c/Dropbox/01. Brain/11. GitHub/FEM/.claude/worktrees/admiring-varahamihira-76d667' -name \"*.py\" -type f -exec grep -l \"from fem.utils.functions import\\\\|from fem.utils import functions\" {} \\\\;)",
+      "Bash(find '/c/Dropbox/01. Brain/11. GitHub/FEM/.claude/worktrees/admiring-varahamihira-76d667' -name \"*.py\" -type f -exec grep -l \"functions\\\\.\" {} \\\\;)",
+      "Bash(find '/c/Dropbox/01. Brain/11. GitHub/FEM/.claude/worktrees/admiring-varahamihira-76d667' -name \"*.py\" -type f -exec grep -l \"plan\\\\|build_elements\\\\|build_load_vector\\\\|build_nodes\\\\|get_nodes_from_physical_id\\\\|get_line_load_global_vector\" {} \\\\;)"
+    ]
+  }
+}
