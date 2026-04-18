@@ -208,36 +208,30 @@ Physical Curve("Support", 256) = {250, 247};
 Physical Curve("LoadBoundary", 257) = {245};
 //+
 
-
-
-
-
-
-
-//+
 Extrude {0, 0, -1.5} {
-  Surface{43}; Layers {5}; Recombine;
+  Surface{43};
 }
 //+
 Extrude {0, 0, 1.5} {
-  Surface{43}; Layers {5}; Recombine;
+  Surface{43};
 }
 //+
 Extrude {0, 0, 0.8} {
-  Surface{1}; 
+  Surface{1};
 }
 //+
 Extrude {0, 0, -0.8} {
-  Surface{1}; Layers {5}; Recombine;
+  Surface{1};
 }
 //+
 Extrude {0, 0, 2.5} {
-  Surface{42}; Surface{41}; Layers {5}; Recombine;
+  Surface{42}; Surface{41};
 }
 //+
 Extrude {0, 0, -2.5} {
-  Surface{42}; Surface{41}; Layers {5}; Recombine;
+  Surface{42}; Surface{41};
 }
 
 //+
+Mesh.ElementOrder = 1;
 Physical Volume("solido", 364) = {5, 7, 2, 3, 4, 1, 6, 8};

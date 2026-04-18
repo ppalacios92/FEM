@@ -19,6 +19,7 @@ from .utils.functions import (
     build_elements,
     build_plot_elements,
     plan,
+    apply_restraints,
     build_load_vector,
 )
 from .utils.gmshtools import (

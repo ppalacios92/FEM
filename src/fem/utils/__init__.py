@@ -6,6 +6,7 @@ from .functions import (
     build_elements,
     build_plot_elements,
     plan,
+    apply_restraints,
     build_load_vector,
 )
 from .gmshtools import (
@@ -31,6 +32,7 @@ __all__ = [
     'matrix_replace',
     # FEM builders
     'plan',
+    'apply_restraints',
     'build_elements',
     'build_plot_elements',
     'build_load_vector',

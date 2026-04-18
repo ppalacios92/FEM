@@ -133,6 +133,25 @@ def _apply_restraints(node_map: dict, elements: dict, restrain_dictionary: dict)
                     node_map[tag].set_restrain(condition)
 
 
+def apply_restraints(mesh, restrain_dictionary: dict):
+    """
+    Apply boundary conditions to mesh.node_map nodes in place.
+
+    Mutates node.restrain for every node belonging to the physical groups
+    defined in restrain_dictionary. No return value.
+
+    Parameters
+    ----------
+    mesh                : GMSHtools
+    restrain_dictionary : dict  {phys_id: ['r'/'f', ...]}
+
+    Examples
+    --------
+    apply_restraints(mesh, {101: ['r', 'r']})
+    """
+    _apply_restraints(mesh.node_map, mesh.elements, restrain_dictionary)
+
+
 # -- FEM element builders ------------------------------------------------------
 
 def _filter_kwargs(element_class: type, kwargs: dict) -> dict:
@@ -162,9 +181,10 @@ def _build_loaded_edges(mesh, load_dictionary: dict) -> dict:
     """
     Pre-process the load_dictionary to build a lookup of loaded edges.
 
-    Iterates over all line groups (dim=1) in load_dictionary and collects
-    every segment as a frozenset of two node tags mapped to its load vector.
-    Using frozenset as key makes the lookup order-independent.
+    Handles both dim=1 (line) and dim=2 (surface) physical groups:
+      - dim=1: each connectivity entry is a segment [tag_i, tag_j] — used directly.
+      - dim=2: each connectivity entry is a triangle [n0, n1, n2] — all three
+               edges are extracted and registered as loaded.
 
     Parameters
     ----------
@@ -182,19 +202,29 @@ def _build_loaded_edges(mesh, load_dictionary: dict) -> dict:
             continue
 
         group = mesh.elements[phys_id]
+        dim   = group['dim']
 
-        if group['dim'] != 1:
+        if dim not in (1, 2):
             continue
 
         load_value = load_spec['value']
         d          = _direction_to_vector(load_spec['direction'])
         q          = load_value * d
 
-        for connectivity in group['connectivity']:
-            tag_i = connectivity[0]
-            tag_j = connectivity[1]
-            key   = frozenset([tag_i, tag_j])
-            loaded_edges[key] = q.tolist()
+        if dim == 1:
+            for connectivity in group['connectivity']:
+                tag_i = connectivity[0]
+                tag_j = connectivity[1]
+                key   = frozenset([tag_i, tag_j])
+                loaded_edges[key] = q.tolist()
+
+        elif dim == 2:
+            n_corners = _ELEMENT_CORNER_COUNT.get(group['n_nodes'], group['n_nodes'])
+            for connectivity in group['connectivity']:
+                for i in range(n_corners):
+                    j     = (i + 1) % n_corners
+                    key   = frozenset([connectivity[i], connectivity[j]])
+                    loaded_edges[key] = q.tolist()
 
     return loaded_edges
 
@@ -428,95 +458,169 @@ def _direction_to_vector(direction) -> np.ndarray:
         return np.array([np.cos(rad), np.sin(rad)])
 
 
-def build_load_vector(mesh,
-                      node_map: dict,
-                      load_dictionary: dict,
-                      system_nDof: int) -> np.ndarray:
+# def build_load_vector(mesh,
+#                       node_map: dict,
+#                       load_dictionary: dict,
+#                       system_nDof: int) -> np.ndarray:
+#     """
+#     Build the global nodal force vector from point loads (dim=0) and
+#     line loads (dim=1) defined on physical groups.
+
+#     Detects the physical group dimension automatically:
+#       - dim=0  ->  point load applied directly to each node in the group.
+#       - dim=1  ->  consistent line load integrated along each segment using
+#                    Lagrange shape functions (linear or quadratic).
+
+#     Line load integration follows the element type reported by Gmsh:
+#       - gmsh_type=1  (2-node linear segment)    ->  [1/2, 1/2] x q x L
+#       - gmsh_type=8  (3-node quadratic segment) ->  [1/6, 1/6, 4/6] x q x L
+
+#     Parameters
+#     ----------
+#     mesh            : GMSHtools or dict
+#     node_map        : dict   {gmsh_tag: Node}  from plan().
+#     load_dictionary : dict   {phys_id: {'value': float, 'direction': str or float}}
+#     system_nDof     : int    Total number of DOFs in the system.
+
+#     Returns
+#     -------
+#     F : np.ndarray  (system_nDof,)  global nodal force vector.
+
+#     Examples
+#     --------
+#     load_dictionary = {
+#         10: {'value': 5000.0, 'direction': '-y'},   # point load  [N]
+#         20: {'value':   10.0, 'direction':  'x'},   # line load   [N/mm]
+#     }
+#     F = build_load_vector(mesh, node_map, load_dictionary, system_nDof)
+#     """
+#     F = np.zeros(system_nDof)
+
+#     for phys_id, load_spec in load_dictionary.items():
+#         if phys_id not in mesh.elements:
+#             continue
+
+#         group      = mesh.elements[phys_id]
+#         dim        = group['dim']
+#         load_value = load_spec['value']
+#         d          = _direction_to_vector(load_spec['direction'])
+
+#         if dim == 0:
+#             # Point load — applied directly to each node in the group
+#             for connectivity in group['connectivity']:
+#                 for tag in connectivity:
+#                     if tag in node_map:
+#                         F[node_map[tag].idx] += load_value * d
+
+#         elif dim == 1:
+#             # Consistent line load — accumulate by node tag to avoid
+#             # double-counting nodes shared between adjacent segments
+#             gmsh_type    = group['gmsh_type']
+#             nodal_forces = {}
+
+#             for connectivity in group['connectivity']:
+#                 tags      = [t for t in connectivity if t in node_map]
+#                 node_list = [node_map[t] for t in tags]
+#                 if len(node_list) < 2:
+#                     continue
+
+#                 f_scalar = _consistent_line_load(node_list, gmsh_type, load_value)
+
+#                 for tag, f in zip(tags, f_scalar):
+#                     nodal_forces[tag] = nodal_forces.get(tag, 0.0) + f
+
+#             for tag, f in nodal_forces.items():
+#                 F[node_map[tag].idx] += f * d
+
+#         elif dim == 2:
+    
+#             unique_tags = set()
+#             for conn in group['connectivity']:
+#                 unique_tags.update(conn)
+#             unique_tags = [t for t in unique_tags if t in node_map]
+#             n = len(unique_tags)
+#             if n > 0:
+#                 for tag in unique_tags:
+#                     # F[node_map[tag].idx] += (load_value / n) * d
+#                     F[node_map[tag].idx[:len(d)]] += (load_value / n) * d
+
+
+#     return F
+
+def build_load_vector(mesh, load_dictionary: dict) -> dict:
     """
-    Build the global nodal force vector from point loads (dim=0) and
-    line loads (dim=1) defined on physical groups.
+    Build nodal force dictionary from load_dictionary.
 
     Detects the physical group dimension automatically:
       - dim=0  ->  point load applied directly to each node in the group.
-      - dim=1  ->  consistent line load integrated along each segment using
-                   Lagrange shape functions (linear or quadratic).
-
-    Line load integration follows the element type reported by Gmsh:
-      - gmsh_type=1  (2-node linear segment)    ->  [1/2, 1/2] x q x L
-      - gmsh_type=8  (3-node quadratic segment) ->  [1/6, 1/6, 4/6] x q x L
+                   value [N] — total force applied to every node.
+      - dim=1  ->  consistent line load integrated along each segment.
+                   value [N/mm] — distributed load magnitude.
+                   Nodes shared between adjacent segments are accumulated once.
+                   gmsh_type=1  (2-node linear)    ->  q * L / 2  per node
+                   gmsh_type=8  (3-node quadratic) ->  q * L / 6 * [1, 1, 4]
+      - dim=2  ->  total force split equally among all unique nodes in group.
+                   value [N] — total force, caller is responsible for consistency.
 
     Parameters
     ----------
-    mesh            : GMSHtools or dict
-    node_map        : dict   {gmsh_tag: Node}  from plan().
-    load_dictionary : dict   {phys_id: {'value': float, 'direction': str or float}}
-    system_nDof     : int    Total number of DOFs in the system.
+    mesh            : GMSHtools
+    load_dictionary : dict  {phys_id or name: {'value': float, 'direction': str or float}}
 
     Returns
     -------
-    F : np.ndarray  (system_nDof,)  global nodal force vector.
-
-    Examples
-    --------
-    load_dictionary = {
-        10: {'value': 5000.0, 'direction': '-y'},   # point load  [N]
-        20: {'value':   10.0, 'direction':  'x'},   # line load   [N/mm]
-    }
-    F = build_load_vector(mesh, node_map, load_dictionary, system_nDof)
+    dict  {gmsh_tag: np.array of shape (nDoF,)}
     """
-    F = np.zeros(system_nDof)
+    nDoF         = globalParameters['nDoF']
+    nodal_forces = {}
 
-    for phys_id, load_spec in load_dictionary.items():
-        if phys_id not in mesh.elements:
+    for key, load_spec in load_dictionary.items():
+        pg = mesh.physical_groups.get(key)
+        if pg is None:
             continue
 
-        group      = mesh.elements[phys_id]
-        dim        = group['dim']
+        dim        = pg.dim
         load_value = load_spec['value']
         d          = _direction_to_vector(load_spec['direction'])
 
         if dim == 0:
-            # Point load — applied directly to each node in the group
-            for connectivity in group['connectivity']:
-                for tag in connectivity:
-                    if tag in node_map:
-                        F[node_map[tag].idx] += load_value * d
+            # point load — applied directly to each node
+            for tag in pg.nodes:
+                nodal_forces[tag] = nodal_forces.get(tag, np.zeros(nDoF))
+                nodal_forces[tag][:len(d)] += load_value * d
 
         elif dim == 1:
-            # Consistent line load — accumulate by node tag to avoid
-            # double-counting nodes shared between adjacent segments
-            gmsh_type    = group['gmsh_type']
-            nodal_forces = {}
+            # consistent line load — q * L / 2 per node per segment
+            # accumulate by tag to avoid double-counting shared nodes
+            group     = pg.elements
+            gmsh_type = group['gmsh_type']
+            accum     = {}
 
             for connectivity in group['connectivity']:
-                tags      = [t for t in connectivity if t in node_map]
-                node_list = [node_map[t] for t in tags]
-                if len(node_list) < 2:
-                    continue
+                coords     = [mesh.nodes[t] for t in connectivity]
+                fake_nodes = [type('N', (), {'coordinates': np.array(c[:2])})()
+                              for c in coords]
+                f_scalar   = _consistent_line_load(fake_nodes, gmsh_type, load_value)
+                for tag, f in zip(connectivity, f_scalar):
+                    accum[tag] = accum.get(tag, 0.0) + f
 
-                f_scalar = _consistent_line_load(node_list, gmsh_type, load_value)
-
-                for tag, f in zip(tags, f_scalar):
-                    nodal_forces[tag] = nodal_forces.get(tag, 0.0) + f
-
-            for tag, f in nodal_forces.items():
-                F[node_map[tag].idx] += f * d
+            for tag, f in accum.items():
+                nodal_forces[tag] = nodal_forces.get(tag, np.zeros(nDoF))
+                nodal_forces[tag][:len(d)] += f * d
 
         elif dim == 2:
-    
+            # total force split equally among all unique nodes in group
             unique_tags = set()
-            for conn in group['connectivity']:
+            for conn in pg.elements.get('connectivity', []):
                 unique_tags.update(conn)
-            unique_tags = [t for t in unique_tags if t in node_map]
             n = len(unique_tags)
             if n > 0:
                 for tag in unique_tags:
-                    # F[node_map[tag].idx] += (load_value / n) * d
-                    F[node_map[tag].idx[:len(d)]] += (load_value / n) * d
+                    nodal_forces[tag] = nodal_forces.get(tag, np.zeros(nDoF))
+                    nodal_forces[tag][:len(d)] += (load_value / n) * d
 
-
-    return F
-
+    return nodal_forces
+    
 
 def _consistent_line_load(node_list: list,
                            gmsh_type: int,

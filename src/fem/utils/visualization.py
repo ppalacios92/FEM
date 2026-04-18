@@ -33,7 +33,8 @@ def add_node_data_view(viewname,
                        vector_type=None,
                        factor=None,
                        arrow_size_max=None,
-                       arrow_size_min=None):
+                       arrow_size_min=None,
+                       deformed_view=None):  
     """
     Add a nodal data view to the current Gmsh model.
 
@@ -89,24 +90,55 @@ def add_node_data_view(viewname,
     if arrow_size_min is not None:
         gmsh.view.option.setNumber(viewnum, "ArrowSizeMin",       arrow_size_min)
 
+    if deformed_view is not None and factor is not None:
+        gmsh.plugin.setNumber("Warp", "View",      viewnum)
+        gmsh.plugin.setNumber("Warp", "OtherView", deformed_view)
+        gmsh.plugin.setNumber("Warp", "Factor",    factor)
+        gmsh.plugin.run("Warp")
+
     return viewnum
 
 
-def compute_nodal_average(elements,
-                          element_data,
-                          nodes):
+def compute_nodal_average(mesh,
+                          element_tags_list,
+                          element_data):
+    """
+    Compute nodal average of element data using raw mesh connectivity.
 
-    node_map = {node.name: idx for idx, node in enumerate(nodes)}
-    nNodes   = len(nodes)
+    Works for both FEM own solver and OpenSees flows — only needs the mesh.
+
+    Parameters
+    ----------
+    mesh              : GMSHtools   mesh with node_map and elements
+    element_tags_list : list[int]   element tags matching element_data order
+    element_data      : np.ndarray  (n_elements,)  scalar value per element
+
+    Returns
+    -------
+    np.ndarray  (n_nodes,)  averaged nodal values in mesh.nodes order
+    """
+    # build {element_tag: connectivity} across all groups
+    tag_to_conn = {}
+    for group in mesh.elements.values():
+        for tag, conn in zip(group['element_tags'], group['connectivity']):
+            tag_to_conn[tag] = conn
+
+    # node tag → position index in mesh.nodes order
+    all_node_tags = list(mesh.nodes.keys())
+    node_idx      = {tag: i for i, tag in enumerate(all_node_tags)}
+    nNodes        = len(all_node_tags)
 
     nodal_values = np.zeros(nNodes)
     count        = np.zeros(nNodes)
 
-    for element, value in zip(elements, element_data):
-        for node in element.nodes:
-            idx = node_map[node.name]
-            nodal_values[idx] += value
-            count[idx]        += 1
+    for elem_tag, value in zip(element_tags_list, element_data):
+        if elem_tag not in tag_to_conn:
+            continue
+        for tag in tag_to_conn[elem_tag]:
+            if tag in node_idx:
+                idx               = node_idx[tag]
+                nodal_values[idx] += value
+                count[idx]        += 1
 
     count[count == 0] = 1
     nodal_values /= count

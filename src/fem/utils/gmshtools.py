@@ -65,9 +65,9 @@ class GMSHtools:
     """
     Read a gmsh mesh file and expose its contents as a structured object.
 
-    This class only handles geometry and connectivity. No FEM objects,
-    no DOF numbering, no boundary conditions, no load vectors.
-    All of that belongs in functions.py.
+    Automatically runs plan() after reading the mesh, so node_map and
+    system_nDof are always available as attributes. Use apply_restraints()
+    to set boundary conditions on node_map nodes when needed.
 
     Parameters
     ----------
@@ -91,6 +91,12 @@ class GMSHtools:
     physical_groups : dict  {phys_id: PhysicalGroup, name: PhysicalGroup}
         Physical groups accessible by integer id or by name string.
 
+    node_map : dict  {gmsh_tag: Node}
+        Node objects with consecutive DOF indices assigned. Auto-built by plan().
+
+    system_nDof : int
+        Total number of DOFs in the system. Auto-built by plan().
+
     Examples
     --------
     mesh = GMSHtools('model.msh')
@@ -102,6 +108,8 @@ class GMSHtools:
     mesh.physical_groups[201].nodes     # {tag: (x,y,z)} in that group
     mesh.physical_groups[201].elements  # raw element data for that group
     mesh.physical_groups[201].dim       # 1 or 2
+    mesh.node_map                       # {gmsh_tag: Node} with DOF indices
+    mesh.system_nDof                    # total DOFs in the system
     """
 
     def __init__(self, file: str):
@@ -114,6 +122,10 @@ class GMSHtools:
         self.physical_groups = self._build_physical_groups()
 
         gmsh.finalize()
+
+        # auto DOF numbering — node_map and system_nDof always available
+        from fem.utils.functions import plan
+        self.node_map, self.system_nDof = plan(self)
 
         self._print_summary()
 
