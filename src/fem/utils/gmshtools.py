@@ -195,31 +195,6 @@ class GMSHtools:
         return (f"GMSHtools | nodes={len(self.nodes)}"
                 f" | physical_groups={n_pg}")
 
-
-    def apply_restraints(self, restrain_dictionary: dict):
-        """
-        Apply boundary conditions to node_map nodes in place.
-
-        Mutates node.restrain for every node belonging to the physical groups
-        defined in restrain_dictionary. No return value.
-
-        Parameters
-        ----------
-        restrain_dictionary : dict  {phys_id: ['r'/'f', ...]}
-
-        Examples
-        --------
-        mesh.apply_restraints({101: ['r', 'r']})
-        """
-        for phys_id, condition in restrain_dictionary.items():
-            if phys_id not in self.elements:
-                continue
-            for node_tags in self.elements[phys_id]['connectivity']:
-                for tag in node_tags:
-                    if tag in self.node_map:
-                        self.node_map[tag].set_restrain(condition)
-
-
     def apply_boundary_conditions(self, restrain_dictionary: dict, load_dictionary: dict, section_dictionary: dict = None, verbose=True):
         """
         Initialize nodes and apply Dirichlet (restraints) and Neumann (nodal loads)

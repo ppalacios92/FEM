@@ -4,10 +4,7 @@ from .functions import (
     matrix_replace,
     get_line_load_global_vector,
     build_elements,
-    # build_plot_elements,
     plan,
-    # apply_restraints,
-    build_load_vector,
 )
 from .gmshtools import (
     get_element_info,
@@ -35,7 +32,6 @@ __all__ = [
     # 'apply_restraints',
     'build_elements',
     'build_plot_elements',
-    'build_load_vector',
     # Gmsh tools
     'get_element_info',
     'GMSHtools',
