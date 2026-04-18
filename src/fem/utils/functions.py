@@ -59,10 +59,6 @@ def plan(mesh, restrain_dictionary: dict = None) -> tuple:
     Assign consecutive DOF indices to all nodes in the mesh and
     optionally apply boundary conditions.
 
-    Gmsh tags are arbitrary integers (1, 5, 13, 274...). This function
-    remaps them to consecutive zero-based indices so that:
-        node.idx = [nDoF*i, nDoF*i+1, ..., nDoF*i + nDoF-1]
-
     This is required before assembling the global stiffness matrix because
     the matrix size is system_nDof x system_nDof and DOFs must be contiguous.
 
@@ -106,50 +102,34 @@ def plan(mesh, restrain_dictionary: dict = None) -> tuple:
         node.idx = np.array([nDoF * i + j for j in range(nDoF)])
         node_map[tag] = node
 
-    if restrain_dictionary:
-        _apply_restraints(node_map, mesh.elements, restrain_dictionary)
+    # mesh.node_map = node_map
+    # if restrain_dictionary:
+    #     apply_restraints(mesh, restrain_dictionary)
 
     system_nDof = len(all_tags) * nDoF
 
     return node_map, system_nDof
 
 
-def _apply_restraints(node_map: dict, elements: dict, restrain_dictionary: dict):
-    """
-    Apply boundary conditions to nodes belonging to physical groups.
+# def apply_restraints(mesh, restrain_dictionary: dict):
+#     """
+#     Apply boundary conditions to nodes belonging to physical groups.
 
-    Parameters
-    ----------
-    node_map            : dict  {gmsh_tag: Node}
-    elements            : dict  mesh.elements from GMSHtools
-    restrain_dictionary : dict  {phys_id: ['r'/'f', ...]}
-    """
-    for phys_id, condition in restrain_dictionary.items():
-        if phys_id not in elements:
-            continue
-        for node_tags in elements[phys_id]['connectivity']:
-            for tag in node_tags:
-                if tag in node_map:
-                    node_map[tag].set_restrain(condition)
+#     Parameters
+#     ----------
+#     node_map            : dict  {gmsh_tag: Node}
+#     elements            : dict  mesh.elements from GMSHtools
+#     restrain_dictionary : dict  {phys_id: ['r'/'f', ...]}
+#     """
+#     for phys_id, condition in restrain_dictionary.items():
+#         if phys_id not in mesh.elements:
+#             continue
+#         for node_tags in mesh.elements[phys_id]['connectivity']:
+#             for tag in node_tags:
+#                 if tag in mesh.node_map:
+#                     mesh.node_map[tag].set_restrain(condition)
 
 
-def apply_restraints(mesh, restrain_dictionary: dict):
-    """
-    Apply boundary conditions to mesh.node_map nodes in place.
-
-    Mutates node.restrain for every node belonging to the physical groups
-    defined in restrain_dictionary. No return value.
-
-    Parameters
-    ----------
-    mesh                : GMSHtools
-    restrain_dictionary : dict  {phys_id: ['r'/'f', ...]}
-
-    Examples
-    --------
-    apply_restraints(mesh, {101: ['r', 'r']})
-    """
-    _apply_restraints(mesh.node_map, mesh.elements, restrain_dictionary)
 
 
 # -- FEM element builders ------------------------------------------------------
@@ -232,7 +212,10 @@ def _build_loaded_edges(mesh, load_dictionary: dict) -> dict:
 # Number of corner nodes per element type.
 # Higher-order elements (LST=6, Quad9=9) have mid-side/centre nodes
 # appended after the corners. Edges are defined only by corner pairs.
-_ELEMENT_CORNER_COUNT = {3: 3, 4: 4, 6: 3, 9: 4}
+_ELEMENT_CORNER_COUNT = {   3: 3, 
+                            4: 4, 
+                            6: 3, 
+                            9: 4}
 
 
 def _get_element_surface_loads(node_list: list, loaded_edges: dict) -> list:
@@ -373,34 +356,34 @@ def build_elements(mesh,
     return np.array(elements, dtype=object)
 
 
-def build_plot_elements(mesh, node_map: dict, phys_ids: list) -> np.ndarray:
-    """
-    Build lightweight element objects for plotting only.
-    Each element has only element_tag and nodes attributes.
+# def build_plot_elements(mesh, node_map: dict, phys_ids: list) -> np.ndarray:
+#     """
+#     Build lightweight element objects for plotting only.
+#     Each element has only element_tag and nodes attributes.
 
-    Parameters
-    ----------
-    mesh     : GMSHtools or dict
-    node_map : dict       {gmsh_tag: Node} from plan()
-    phys_ids : list       Physical group IDs to include
+#     Parameters
+#     ----------
+#     mesh     : GMSHtools or dict
+#     node_map : dict       {gmsh_tag: Node} from plan()
+#     phys_ids : list       Physical group IDs to include
 
-    Returns
-    -------
-    np.ndarray of SimpleNamespace objects with .element_tag and .nodes
-    """
-    from types import SimpleNamespace
+#     Returns
+#     -------
+#     np.ndarray of SimpleNamespace objects with .element_tag and .nodes
+#     """
+#     from types import SimpleNamespace
 
-    elements = []
-    for phys_id in phys_ids:
-        if phys_id not in mesh.elements:
-            continue
-        group = mesh.elements[phys_id]
-        for elem_tag, conn in zip(group['element_tags'], group['connectivity']):
-            elements.append(SimpleNamespace(
-                element_tag = elem_tag,
-                nodes       = [node_map[tag] for tag in conn]
-            ))
-    return np.array(elements, dtype=object)
+#     elements = []
+#     for phys_id in phys_ids:
+#         if phys_id not in mesh.elements:
+#             continue
+#         group = mesh.elements[phys_id]
+#         for elem_tag, conn in zip(group['element_tags'], group['connectivity']):
+#             elements.append(SimpleNamespace(
+#                 element_tag = elem_tag,
+#                 nodes       = [node_map[tag] for tag in conn]
+#             ))
+#     return np.array(elements, dtype=object)
 
 
 # -- Load vector builders ------------------------------------------------------

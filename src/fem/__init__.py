@@ -17,9 +17,9 @@ from .utils.functions import (
     matrix_replace,
     get_line_load_global_vector,
     build_elements,
-    build_plot_elements,
+    # build_plot_elements,
     plan,
-    apply_restraints,
+    # apply_restraints,
     build_load_vector,
 )
 from .utils.gmshtools import (

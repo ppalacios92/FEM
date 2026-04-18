@@ -114,7 +114,7 @@ def _draw_element_edges(ax, nodes, elements, u=None, sfac=1.0,
     """Draw element boundary edges over a plot."""
     coords   = _get_node_coords(nodes, u, sfac)
     node_map = {node.name: i for i, node in enumerate(nodes)}
-    polygons = [coords[[node_map[n.name] for n in el.nodes], :2] for el in elements]
+    polygons = [coords[[node_map[n.name] for n in _corner_nodes(el)], :2] for el in elements]
     ax.add_collection(mc.PolyCollection(polygons,
                                         facecolors='none',
                                         edgecolors=color,
@@ -200,6 +200,15 @@ def _get_corner_count(gmsh_type: int, n_nodes: int) -> int:
     return _GMSH_CORNER_COUNT.get(gmsh_type, n_nodes)
 
 
+# Corner node count by Python element class name
+_CLASS_CORNER_COUNT = {'CST': 3, 'LST': 3, 'Quad4': 4, 'Quad9': 4}
+
+def _corner_nodes(el):
+    """Return only the corner nodes of an element (strips mid-side nodes)."""
+    n = _CLASS_CORNER_COUNT.get(type(el).__name__, len(el.nodes))
+    return el.nodes[:n]
+
+
 # --------------------------------------
 def plot_mesh(nodes=None,
               elements=None,
@@ -228,15 +237,14 @@ def plot_mesh(nodes=None,
         node_map = {node.name: i for i, node in enumerate(nodes)}
 
         for el in elements:
-            idx  = [node_map[n.name] for n in el.nodes]
-            # poly = coords[idx, :]
+            corners = _corner_nodes(el)
+            idx  = [node_map[n.name] for n in corners]
             poly = coords[idx, :2]
             if view_3d:
                 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-                # poly3d = np.array([n.coordinates[:3] for n in el.nodes])
                 poly3d = np.array([
                     (n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0)
-                    for n in el.nodes
+                    for n in corners
                 ])
                 verts  = [[(x, y, z) for x, y, z in poly3d]]
                 ax.add_collection3d(Poly3DCollection(verts,
@@ -358,15 +366,15 @@ def plot_loads_2d(nodes: list,
     if elements is not None and nodes is not None:
         coords   = _get_node_coords(nodes)
         node_map = {node.name: i for i, node in enumerate(nodes)}
-        polygons = [coords[[node_map[n.name] for n in el.nodes], :2] for el in elements]
+        polygons = [coords[[node_map[n.name] for n in _corner_nodes(el)], :2] for el in elements]
 
         if view_3d:
             from mpl_toolkits.mplot3d.art3d import Poly3DCollection
             for el in elements:
-                idx    = [node_map[n.name] for n in el.nodes]
+                idx    = [node_map[n.name] for n in _corner_nodes(el)]
                 poly3d = np.array([
                     (n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0)
-                    for n in el.nodes
+                    for n in _corner_nodes(el)
                 ])
                 verts = [[(x, y, z) for x, y, z in poly3d]]
                 ax.add_collection3d(Poly3DCollection(verts,
@@ -536,7 +544,7 @@ def plot_deformed(nodes: list,
 
         # Undeformed — transparent
         for el in elements:
-            idx    = [node_map[n.name] for n in el.nodes]
+            idx    = [node_map[n.name] for n in _corner_nodes(el)]
             poly3d = coords_orig[idx, :3]
             verts  = [[(x, y, z) for x, y, z in poly3d]]
             ax.add_collection3d(Poly3DCollection(verts,
@@ -547,7 +555,7 @@ def plot_deformed(nodes: list,
 
         # Deformed — colored by avg disp
         for el in elements:
-            idx      = [node_map[n.name] for n in el.nodes]
+            idx      = [node_map[n.name] for n in _corner_nodes(el)]
             poly3d   = coords_def[idx, :3]
             avg_disp = np.mean(disp_vals[idx])
             color    = cmap_obj(norm(avg_disp))
@@ -564,7 +572,7 @@ def plot_deformed(nodes: list,
 
     else:
         # Undeformed — transparent background
-        polygons_orig = [coords_orig[[node_map[n.name] for n in el.nodes], :2] for el in elements]
+        polygons_orig = [coords_orig[[node_map[n.name] for n in _corner_nodes(el)], :2] for el in elements]
         ax.add_collection(mc.PolyCollection(polygons_orig,
                                             facecolors='#f0f0f0',
                                             edgecolors='tab:blue',
@@ -581,7 +589,7 @@ def plot_deformed(nodes: list,
             if limit is not None:
                 out_polys = []
                 for el in elements:
-                    idx = [node_map[n.name] for n in el.nodes]
+                    idx = [node_map[n.name] for n in _corner_nodes(el)]
                     if np.mean(disp_vals[idx]) < vmin or np.mean(disp_vals[idx]) > vmax:
                         out_polys.append(coords_def[idx, :2])
                 if out_polys:
@@ -597,7 +605,7 @@ def plot_deformed(nodes: list,
             polygons_def = []
             colors_def   = []
             for el in elements:
-                idx      = [node_map[n.name] for n in el.nodes]
+                idx      = [node_map[n.name] for n in _corner_nodes(el)]
                 avg_disp = np.mean(disp_vals[idx])
                 polygons_def.append(coords_def[idx, :2])
                 outside = (avg_disp < vmin or avg_disp > vmax) if limit is not None else False
@@ -710,7 +718,7 @@ def plot_field_2d(nodes: list,
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
         for el, val in zip(elements, element_vals):
-            idx    = [node_map[n.name] for n in el.nodes]
+            idx    = [node_map[n.name] for n in _corner_nodes(el)]
             poly3d = coords[idx, :3]
             color  = cmap_obj(norm(val))
             verts  = [[(x, y, z) for x, y, z in poly3d]]
@@ -741,7 +749,7 @@ def plot_field_2d(nodes: list,
                 out_polys = []
                 for el, val in zip(elements, element_vals):
                     if val < vmin or val > vmax:
-                        idx = [node_map[n.name] for n in el.nodes]
+                        idx = [node_map[n.name] for n in _corner_nodes(el)]
                         out_polys.append(coords[idx, :2])
                 if out_polys:
                     ax.add_collection(mc.PolyCollection(out_polys,
@@ -756,7 +764,7 @@ def plot_field_2d(nodes: list,
             polygons_f = []
             colors_f   = []
             for el, val in zip(elements, element_vals):
-                idx = [node_map[n.name] for n in el.nodes]
+                idx = [node_map[n.name] for n in _corner_nodes(el)]
                 polygons_f.append(coords[idx, :2])
                 outside = (val < vmin or val > vmax) if limit is not None else False
                 colors_f.append('tab:red' if outside else '#d0d0d0')
