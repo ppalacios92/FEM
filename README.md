@@ -308,3 +308,8 @@ A collection of problems solved with this library.
 
 | <img src="docs/images/00.png" width="500"/> |
 |:---:|
+
+## 3D Solid Elements
+
+| <img src="docs/images/200.png" width="300"/> | <img src="docs/images/201.png" width="300"/> |
+|:---:|:---:|
