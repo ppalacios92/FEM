@@ -144,3 +144,213 @@ def compute_nodal_average(mesh,
     nodal_values /= count
 
     return nodal_values
+
+def results2gmsh(output_file, mesh,
+                 node_tags, element_tags_list,
+                 u_3d, F_3d, R_3d,
+                 sigma_gmsh,
+                 epsilon_gmsh    = None,
+                 von_mises_gmsh  = None,
+                 disp_factor     = 10,
+                 show_disp       = True,
+                 show_loads      = True,
+                 show_reactions  = True,
+                 show_stress     = True,
+                 show_strain     = True,
+                 show_vm         = True,
+                 show_averaged   = True):
+    """
+    Visualize FEM results in gmsh from pre-computed arrays.
+
+    Parameters
+    ----------
+    output_file       : str           Path to .msh file
+    mesh              : GMSHtools     Mesh object
+    node_tags         : np.ndarray    Node tags in gmsh order
+    element_tags_list : list          Element tags
+    u_3d              : np.ndarray    Displacements (n_nodes, 3)
+    F_3d              : np.ndarray    Applied loads (n_nodes, 3)
+    R_3d              : np.ndarray    Reactions (n_nodes, 3)
+    sigma_gmsh        : np.ndarray    Stresses (n_elements, 3 or 6)
+    epsilon_gmsh      : np.ndarray    Strains (n_elements, 3 or 6) — optional
+    von_mises_gmsh    : np.ndarray    Von Mises (n_elements,) — optional
+    disp_factor       : float         Displacement scale factor
+    show_*            : bool          Toggle each view
+    """
+    n_comp = sigma_gmsh.shape[1]
+    if n_comp == 6:
+        stress_labels = ['Sxx', 'Syy', 'Szz', 'Sxy', 'Syz', 'Sxz']
+        strain_labels = ['Exx', 'Eyy', 'Ezz', 'Exy', 'Eyz', 'Exz']
+    else:
+        stress_labels = ['Sxx', 'Syy', 'Sxy']
+        strain_labels = ['Exx', 'Eyy', 'Exy']
+
+    # compute von Mises if not provided
+    if von_mises_gmsh is None:
+        sxx = sigma_gmsh[:, 0]
+        syy = sigma_gmsh[:, 1]
+        sxy = sigma_gmsh[:, 3] if n_comp == 6 else sigma_gmsh[:, 2]
+        von_mises_gmsh = np.sqrt(sxx**2 - sxx*syy + syy**2 + 3*sxy**2)
+
+    gmsh.initialize()
+    gmsh.open(output_file)
+    gmsh.option.setNumber("Mesh.SurfaceFaces", 0)
+
+    disp_view = None
+
+    if show_disp:
+        disp_view = add_node_data_view("Displacements", node_tags, u_3d,
+                                       vector_type=5, factor=disp_factor)
+
+    if show_loads and np.any(F_3d != 0):
+        add_node_data_view("Applied Loads", node_tags, F_3d,
+                           arrow_size_max=60, arrow_size_min=20)
+
+    if show_reactions:
+        add_node_data_view("Reactions", node_tags, R_3d)
+
+    if show_stress:
+        for col, name in enumerate(stress_labels):
+            add_element_data_view(f"Stress {name}", element_tags_list, sigma_gmsh[:, col])
+
+    if show_strain and epsilon_gmsh is not None:
+        for col, name in enumerate(strain_labels):
+            add_element_data_view(f"Strain {name}", element_tags_list, epsilon_gmsh[:, col])
+
+    if show_vm:
+        add_element_data_view("Von Mises", element_tags_list, von_mises_gmsh)
+
+    if show_averaged and disp_view is not None:
+        for col, name in enumerate(stress_labels):
+            nodal = compute_nodal_average(mesh, element_tags_list, sigma_gmsh[:, col])
+            add_node_data_view(f"{name} Averaged", node_tags, nodal,
+                               deformed_view=disp_view)
+        vm_nodal = compute_nodal_average(mesh, element_tags_list, von_mises_gmsh)
+        add_node_data_view("Von Mises Averaged", node_tags, vm_nodal,
+                           deformed_view=disp_view)
+        if epsilon_gmsh is not None:
+            for col, name in enumerate(strain_labels):
+                nodal = compute_nodal_average(mesh, element_tags_list, epsilon_gmsh[:, col])
+                add_node_data_view(f"{name} Averaged", node_tags, nodal,
+                                   deformed_view=disp_view)
+
+    gmsh.fltk.run()
+    gmsh.finalize()
+
+
+def opensees2gmsh(output_file, mesh, ops, solid_group_name,
+                  F_nodal       = None,
+                  disp_factor   = 10,
+                  material      = None,
+                  analysis_type = 'planeStress',
+                  show_disp     = True,
+                  show_loads    = True,
+                  show_reactions= True,
+                  show_stress   = True,
+                  show_strain   = True,
+                  show_vm       = True,
+                  show_averaged = True):
+    """
+    Extract results from OpenSees and visualize in gmsh.
+
+    Parameters
+    ----------
+    output_file      : str        Path to .msh file
+    mesh             : GMSHtools  Mesh object
+    ops              : module     OpenSees module
+    solid_group_name : str        Physical group name for solid elements
+    F_nodal          : dict       {tag: np.array} from build_load_vector (optional)
+    disp_factor      : float      Displacement scale factor
+    material         : Material   Material object with E and nu (for strain computation)
+    analysis_type    : str        'planeStress' or 'planeStrain' (2D only)
+    show_*           : bool       Toggle each view
+    """
+    # --- Extract nodal results ---
+    nDOF = mesh.system_nDof // len(mesh.nodes)
+    ops.reactions()
+
+    n_nodes   = len(mesh.nodes)
+    node_tags = np.array(list(mesh.nodes.keys()))
+    u_3d      = np.zeros((n_nodes, 3))
+    R_3d      = np.zeros((n_nodes, 3))
+    F_3d      = np.zeros((n_nodes, 3))
+
+    for i, tag in enumerate(mesh.nodes):
+        for j in range(nDOF):
+            u_3d[i, j] = ops.nodeDisp(tag, j+1)
+            R_3d[i, j] = ops.nodeReaction(tag, j+1)
+
+    if F_nodal is not None:
+        for i, tag in enumerate(mesh.nodes):
+            f = F_nodal.get(tag, np.zeros(nDOF))
+            F_3d[i, :len(f)] = f[:nDOF]
+
+    # --- Extract element results ---
+    element_tags_list   = mesh.physical_groups[solid_group_name].elements['element_tags']
+    n_elements          = len(element_tags_list)
+    sigma_gmsh          = np.zeros((n_elements, 6))
+    strain_gmsh         = np.zeros((n_elements, 6))
+    von_mises_gmsh      = np.zeros(n_elements)
+    n_stress_components = 3
+    compute_strain      = material is not None
+
+    for i, elem_tag in enumerate(element_tags_list):
+        # stress = ops.eleResponse(elem_tag, 'stress')
+        stress = ops.eleResponse(elem_tag, 'stresses')
+        if stress:
+            s      = np.array(stress)
+            n_comp = 6 if len(s) % 6 == 0 and len(s) >= 6 else 3
+            n_stress_components = n_comp
+            s      = s.reshape(-1, n_comp).mean(axis=0)
+            sigma_gmsh[i, :n_comp] = s
+
+            sxx, syy = s[0], s[1]
+            sxy      = s[3] if n_comp == 6 else s[2]
+            von_mises_gmsh[i] = np.sqrt(sxx**2 - sxx*syy + syy**2 + 3*sxy**2)
+
+            if compute_strain:
+                E, nu = material.E, material.nu
+                if n_comp == 6:
+                    szz, sxy, syz, sxz = s[2], s[3], s[4], s[5]
+                    strain_gmsh[i, 0] = (sxx - nu*(syy+szz)) / E
+                    strain_gmsh[i, 1] = (syy - nu*(sxx+szz)) / E
+                    strain_gmsh[i, 2] = (szz - nu*(sxx+syy)) / E
+                    strain_gmsh[i, 3] = 2*sxy*(1+nu) / E
+                    strain_gmsh[i, 4] = 2*syz*(1+nu) / E
+                    strain_gmsh[i, 5] = 2*sxz*(1+nu) / E
+                elif analysis_type == 'planeStress':
+                    sxy = s[2]
+                    strain_gmsh[i, 0] = (sxx - nu*syy) / E
+                    strain_gmsh[i, 1] = (syy - nu*sxx) / E
+                    strain_gmsh[i, 2] = 2*sxy*(1+nu) / E
+                elif analysis_type == 'planeStrain':
+                    sxy = s[2]
+                    strain_gmsh[i, 0] = ((1-nu**2)*sxx - nu*(1+nu)*syy) / E
+                    strain_gmsh[i, 1] = ((1-nu**2)*syy - nu*(1+nu)*sxx) / E
+                    strain_gmsh[i, 2] = 2*sxy*(1+nu) / E
+
+    # trim arrays to detected component count
+    sigma_gmsh = sigma_gmsh[:, :n_stress_components]
+    epsilon_gmsh = strain_gmsh[:, :n_stress_components] if compute_strain else None
+
+    results2gmsh(
+        output_file       = output_file,
+        mesh              = mesh,
+        node_tags         = node_tags,
+        element_tags_list = element_tags_list,
+        u_3d              = u_3d,
+        F_3d              = F_3d,
+        R_3d              = R_3d,
+        sigma_gmsh        = sigma_gmsh,
+        epsilon_gmsh      = epsilon_gmsh,
+        von_mises_gmsh    = von_mises_gmsh,
+        disp_factor       = disp_factor,
+        show_disp         = show_disp,
+        show_loads        = show_loads,
+        show_reactions    = show_reactions,
+        show_stress       = show_stress,
+        show_strain       = show_strain,
+        show_vm           = show_vm,
+        show_averaged     = show_averaged,
+    )
+

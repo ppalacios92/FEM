@@ -14,6 +14,8 @@ from .visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average,
+    results2gmsh,
+    opensees2gmsh,
 )
 from .plotting import (
     plot_mesh,
@@ -22,16 +24,13 @@ from .plotting import (
     plot_loads_2d,
     plot_gmsh_mesh,
 )
-
 __all__ = [
     # Matrix utilities
     'matrix_extract',
     'matrix_replace',
     # FEM builders
     'plan',
-    # 'apply_restraints',
     'build_elements',
-    'build_plot_elements',
     # Gmsh tools
     'get_element_info',
     'GMSHtools',
@@ -41,6 +40,8 @@ __all__ = [
     'add_element_data_view',
     'add_node_data_view',
     'compute_nodal_average',
+    'results2gmsh',
+    'opensees2gmsh',
     # Plotting
     'plot_mesh',
     'plot_field_2d',

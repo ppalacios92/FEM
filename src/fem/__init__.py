@@ -28,6 +28,8 @@ from .utils.visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average,
+    results2gmsh,
+    opensees2gmsh,
 )
 # Plotting
 from .utils.plotting import (
