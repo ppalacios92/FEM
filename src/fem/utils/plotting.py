@@ -400,45 +400,37 @@ def plot_loads_2d(nodes: list,
                     if abs(F_load[node.idx[0]]) > 0 or abs(F_load[node.idx[1]]) > 0]
 
     if loaded_nodes:
-        xs  = np.array([n.coordinates[0] for n, _, _ in loaded_nodes])
-        ys  = np.array([n.coordinates[1] for n, _, _ in loaded_nodes])
-        fxs = np.array([fx for _, fx, _ in loaded_nodes], dtype=float)
-        fys = np.array([fy for _, _, fy in loaded_nodes], dtype=float)
+            xs  = np.array([n.coordinates[0] for n, _, _ in loaded_nodes])
+            ys  = np.array([n.coordinates[1] for n, _, _ in loaded_nodes])
+            fxs = np.array([fx for _, fx, _ in loaded_nodes], dtype=float)
+            fys = np.array([fy for _, _, fy in loaded_nodes], dtype=float)
 
-        mags = np.sqrt(fxs**2 + fys**2)
-        mags[mags == 0] = 1
-        uxs = fxs / mags
-        uys = fys / mags
+            mags    = np.sqrt(fxs**2 + fys**2)
+            max_mag = mags.max()
+            max_mag = max_mag if max_mag > 0 else 1.0
+            ratios  = mags / max_mag         
 
-        all_coords = _get_node_coords(nodes)
-        
-        if view_3d:
-            all_coords_3d = np.array([
-                [n.coordinates[0], n.coordinates[1], n.coordinates[2] if len(n.coordinates) > 2 else 0.0]
-                for n in nodes
-            ])
-            bbox_diag = np.sqrt(np.ptp(all_coords_3d[:, 0])**2 +
-                                np.ptp(all_coords_3d[:, 1])**2 +
-                                np.ptp(all_coords_3d[:, 2])**2)
-            arrow_len = 0.002 * bbox_diag  # ajusta este factor si sigue grande/chico
-        else:
-            bbox_diag = np.sqrt(np.ptp(all_coords[:, 0])**2 + np.ptp(all_coords[:, 1])**2)
-            arrow_len = 0.05 * bbox_diag
+            uxs = fxs / mags
+            uys = fys / mags
 
-        if view_3d:
-            zs = np.array([n.coordinates[2] if len(n.coordinates) > 2 else 0.0 for n, _, _ in loaded_nodes])
-            ax.quiver(xs, ys, zs, uxs * arrow_len, uys * arrow_len, np.zeros_like(uxs),
-                      color='tab:blue', normalize=False)
-        else:
-            ax.quiver(xs, ys, uxs, uys,
-                      scale=1.0 / arrow_len,
-                      scale_units='xy',
-                      angles='xy',
-                      color='tab:blue',
-                      width=0.002,
-                      headwidth=4,
-                      headlength=5,
-                      zorder=5)
+            all_coords = _get_node_coords(nodes)
+            bbox_diag  = np.sqrt(np.ptp(all_coords[:, 0])**2 + np.ptp(all_coords[:, 1])**2)
+            arrow_len  = 0.05 * bbox_diag
+
+            cmap_obj = plt.get_cmap('Reds')
+            colors   = [cmap_obj(0.3 + 0.7 * r) for r in ratios]
+
+            for i in range(len(xs)):
+                length = arrow_len * max(ratios[i], 0.25)
+                ax.quiver(xs[i], ys[i], uxs[i], uys[i],
+                          scale=1.0 / length,
+                          scale_units='xy',
+                          angles='xy',
+                          color=colors[i],
+                          width=0.002,
+                          headwidth=4,
+                          headlength=5,
+                          zorder=5)
 
 
     if not view_3d:

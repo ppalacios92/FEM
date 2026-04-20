@@ -336,9 +336,16 @@ class FEMModel:
         for idx in all_idx:
             elem     = self.elements[idx]
             centroid = np.mean([n.coordinates for n in elem.nodes], axis=0)
-            sigma    = result.sigma[idx]   if result is not None else None
-            epsilon  = result.epsilon[idx] if result is not None else None
-            vm       = result.vm[idx]      if result is not None else None
+            sigma   = result.sigma[idx] if result is not None and result.sigma   is not None else None
+            vm      = result.vm[idx]    if result is not None and result.vm      is not None else None
+            if result is not None and result.epsilon is not None:
+                epsilon = result.epsilon[idx]
+            elif sigma is not None:
+                eps     = self._solver._strains_from_hooke(sigma.reshape(1, -1), elem.section.material)
+                epsilon = eps[0]
+            else:
+                epsilon = None
+    
 
             row = f"  {elem.element_tag:>6}  {str(centroid.round(2)):25s}  {type(elem).__name__:8s}"
             if sigma is not None:
