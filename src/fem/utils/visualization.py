@@ -354,3 +354,153 @@ def opensees2gmsh(output_file, mesh, ops, solid_group_name,
         show_averaged     = show_averaged,
     )
 
+
+
+def animate_nodal_view(output_file, node_tags, data_steps,
+                       view_name   = "Animation",
+                       vector_type = 5,
+                       disp_factor = 1.0,
+                       times       = None):
+    """
+    Create animated gmsh view from a list of nodal arrays.
+
+    Parameters
+    ----------
+    output_file : str          Path to .msh file.
+    node_tags   : ndarray      Node tags matching the model.
+    data_steps  : list         List of ndarray (n_nodes, 3), one per frame.
+    view_name   : str          Label shown in gmsh.
+    vector_type : int          Gmsh VectorType (5 = deformed shape).
+    disp_factor : float        Displacement scale factor.
+    times       : list[float]  Time labels per frame. Defaults to 0,1,2,...
+    """
+    if times is None:
+        times = list(range(len(data_steps)))
+
+    gmsh.initialize()
+    gmsh.open(output_file)
+
+    view = gmsh.view.add(view_name)
+    for step, (data, t) in enumerate(zip(data_steps, times)):
+        gmsh.view.addHomogeneousModelData(
+            tag           = view,
+            step          = step,
+            time          = float(t),
+            modelName     = gmsh.model.getCurrent(),
+            dataType      = "NodeData",
+            numComponents = -1,
+            tags          = node_tags,
+            data          = np.array(data).reshape(-1),
+        )
+
+    gmsh.view.option.setNumber(view, "VectorType",         vector_type)
+    gmsh.view.option.setNumber(view, "DisplacementFactor", disp_factor)
+
+    gmsh.fltk.run()
+    gmsh.finalize()
+
+
+def animate_results(output_file, mesh, node_tags, element_tags, results,
+                    disp_factor    = 10,
+                    show_disp      = True,
+                    show_stress    = True,
+                    show_strain    = True,
+                    show_vm        = True,
+                    show_averaged  = True,
+                    deformed_shape = True):
+    """
+    Send all result steps to gmsh as animated views.
+
+    Parameters
+    ----------
+    output_file    : str
+    mesh           : GMSHtools
+    node_tags      : ndarray
+    element_tags   : list
+    results        : list[FEMResult]
+    disp_factor    : float
+    show_*         : bool
+    deformed_shape : bool  Apply warp to nodal averaged views.
+    """
+    n_comp = results[0].sigma.shape[1]
+    if n_comp == 6:
+        stress_labels = ['Sxx', 'Syy', 'Szz', 'Sxy', 'Syz', 'Sxz']
+        strain_labels = ['Exx', 'Eyy', 'Ezz', 'Exy', 'Eyz', 'Exz']
+    else:
+        stress_labels = ['Sxx', 'Syy', 'Sxy']
+        strain_labels = ['Exx', 'Eyy', 'Exy']
+
+    times = [r.time for r in results]
+
+    gmsh.initialize()
+    gmsh.open(output_file)
+    gmsh.option.setNumber("Mesh.SurfaceFaces", 0)
+
+    def _node_view(name, data_steps, vector_type=1, factor=1.0):
+        view = gmsh.view.add(name)
+        for step, (data, t) in enumerate(zip(data_steps, times)):
+            gmsh.view.addHomogeneousModelData(
+                tag=view, step=step, time=float(t),
+                modelName=gmsh.model.getCurrent(),
+                dataType="NodeData", numComponents=-1,
+                tags=node_tags, data=np.array(data).reshape(-1))
+        gmsh.view.option.setNumber(view, "VectorType",         vector_type)
+        gmsh.view.option.setNumber(view, "DisplacementFactor", factor)
+        gmsh.view.option.setNumber(view, "Visible", 0)
+        return view
+
+    def _elem_view(name, data_steps):
+        view = gmsh.view.add(name)
+        for step, (data, t) in enumerate(zip(data_steps, times)):
+            gmsh.view.addHomogeneousModelData(
+                tag=view, step=step, time=float(t),
+                modelName=gmsh.model.getCurrent(),
+                dataType="ElementData", numComponents=-1,
+                tags=element_tags, data=np.array(data).reshape(-1))
+        gmsh.view.option.setNumber(view, "Visible", 0)
+        return view
+
+    def _warp(view, disp_view):
+        gmsh.plugin.setNumber("Warp", "View",      view)
+        gmsh.plugin.setNumber("Warp", "OtherView", disp_view)
+        gmsh.plugin.setNumber("Warp", "Factor",    disp_factor)
+        gmsh.plugin.run("Warp")
+
+    disp_view = None
+    if show_disp:
+        disp_view = _node_view("Displacements",
+                               [r.u_3d for r in results],
+                               vector_type=5, factor=disp_factor)
+        gmsh.view.option.setNumber(disp_view, "Visible", 1)
+
+    if show_stress:
+        for col, name in enumerate(stress_labels):
+            _elem_view(f"Stress {name}", [r.sigma[:, col] for r in results])
+
+    if show_strain and results[0].epsilon is not None:
+        for col, name in enumerate(strain_labels):
+            _elem_view(f"Strain {name}", [r.epsilon[:, col] for r in results])
+
+    if show_vm:
+        _elem_view("Von Mises", [r.vm for r in results])
+
+    if show_averaged and results[0].sigma_nodal is not None:
+        for col, name in enumerate(stress_labels):
+            view = _node_view(f"{name} Averaged",
+                              [r.sigma_nodal[:, col] for r in results])
+            if deformed_shape and disp_view is not None:
+                _warp(view, disp_view)
+
+        view = _node_view("Von Mises Averaged", [r.vm_nodal for r in results])
+        if deformed_shape and disp_view is not None:
+            _warp(view, disp_view)
+
+        if results[0].epsilon_nodal is not None:
+            for col, name in enumerate(strain_labels):
+                view = _node_view(f"{name} Averaged",
+                                  [r.epsilon_nodal[:, col] for r in results])
+                if deformed_shape and disp_view is not None:
+                    _warp(view, disp_view)
+
+    gmsh.fltk.run()
+    gmsh.finalize()

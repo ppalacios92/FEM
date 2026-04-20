@@ -1,9 +1,13 @@
 """FEM - Finite Element Analysis Library"""
-# Core modules
+
+# Core
 from .core.Node import Node
 from .core.Material import Material
+from .core.parameters import globalParameters
+
 # Sections
 from .sections.Membrane import Membrane
+
 # Elements
 from .elements.CST import CST
 from .elements.LST import LST
@@ -11,6 +15,7 @@ from .elements.Truss2D import Truss2D
 from .elements.Frame2D import Frame2D
 from .elements.Quad4 import Quad4
 from .elements.Quad9 import Quad9
+
 # Utilities
 from .utils.functions import (
     matrix_extract,
@@ -23,15 +28,19 @@ from .utils.gmshtools import (
     get_element_info,
     GMSHtools,
 )
-# Visualization
+
+# Visualization — gmsh
 from .utils.visualization import (
     add_element_data_view,
     add_node_data_view,
     compute_nodal_average,
     results2gmsh,
     opensees2gmsh,
+    animate_nodal_view,
+    animate_results,
 )
-# Plotting
+
+# Plotting — matplotlib
 from .utils.plotting import (
     plot_mesh,
     plot_field_2d,
@@ -39,6 +48,7 @@ from .utils.plotting import (
     plot_loads_2d,
     plot_gmsh_mesh,
 )
+
 # Units
 from .utils.units import (
     mm, cm, m, km, inches, ft, yard, mile,
@@ -52,21 +62,24 @@ from .utils.units import (
     radian, degree,
     K, C, F,
 )
-# Global parameters
-from .core.parameters import globalParameters
 
-__version__ = "1.1.0"
+# Model
+from .model.result import FEMResult
+from .model.modal_result import ModalResult
+from .model.fem_model import FEMModel
+
+__version__ = "1.2.0"
 
 print("""
   FEM -- Finite Element Method for Structural Analysis
-  Based on the course by Prof. José Abell
+  Based on the course by Prof. Jose Abell
 
-  Version 1.1.0                        © 2026 All Rights Reserved
+  Version 1.2.0                        (c) 2026 All Rights Reserved
 
   Repository  :  https://github.com/ppalacios92/FEM
   Web Book    :  https://books.nmorabowen.com/books/fem
 
   Patricio Palacios B.    |    Nicolas Mora Bowen
-
-  ********* (>'-')> Ladruño4ever  *********
+  
+  ********* (>'-')> Ladruno4ever  *********
 """)

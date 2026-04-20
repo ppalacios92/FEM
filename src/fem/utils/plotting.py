@@ -978,3 +978,126 @@ def plot_gmsh_mesh(mesh: dict,
     if save:
         _save_figure(fig, save)
     plt.show()
+
+# -- Field extraction from FEMResult (no elements needed) ---------------------
+
+def _extract_field_from_result(result, component: str, n_nodes: int) -> np.ndarray:
+    """
+    Extract nodal scalar field from a FEMResult object.
+    Used when FEM elements are not available (OpenSees flow).
+
+    Parameters
+    ----------
+    result    : FEMResult
+    component : str   'sxx','syy','sxy','sxz','syz','szz',
+                      'exx','eyy','exy','vm','vmis'
+    n_nodes   : int
+
+    Returns
+    -------
+    np.ndarray (n_nodes,)
+    """
+    stress_map = {'sxx': 0, 'syy': 1, 'sxy': 2,
+                  'szz': 2, 'sxz': 4, 'syz': 5}
+    strain_map = {'exx': 0, 'eyy': 1, 'exy': 2,
+                  'ezz': 2, 'exz': 4, 'eyz': 5}
+
+    if component in ('vm', 'vmis'):
+        if result.vm_nodal is not None:
+            return result.vm_nodal
+        raise ValueError("vm_nodal not available in result.")
+
+    if component in stress_map and result.sigma_nodal is not None:
+        col = stress_map[component]
+        if col < result.sigma_nodal.shape[1]:
+            return result.sigma_nodal[:, col]
+
+    if component in strain_map and result.epsilon_nodal is not None:
+        col = strain_map[component]
+        if col < result.epsilon_nodal.shape[1]:
+            return result.epsilon_nodal[:, col]
+
+    raise ValueError(
+        f"Component '{component}' not found in result. "
+        f"Valid: 'sxx','syy','sxy','szz','exx','eyy','exy','vm'"
+    )
+
+
+# -- 3D field plot -------------------------------------------------------------
+
+def plot_field_3d(nodes: list,
+                  result,
+                  component: str = 'vm',
+                  deformed: bool = False,
+                  sfac: float = 1.0,
+                  cmap: str = 'turbo',
+                  limit: tuple = None,
+                  elev: float = 30,
+                  azim: float = -60,
+                  figsize: tuple = (12, 8),
+                  point_size: float = 10.0,
+                  ax=None,
+                  save: str = None):
+    """
+    Plot a scalar field over 3D nodes using a scatter plot.
+    Works with OpenSees results (no FEM elements needed).
+
+    Parameters
+    ----------
+    nodes     : list of Node
+    result    : FEMResult
+    component : str    'sxx','syy','sxy','szz','exx','eyy','exy','vm'
+    deformed  : bool   Plot over deformed shape
+    sfac      : float  Displacement scale factor
+    cmap      : str    Matplotlib colormap
+    limit     : tuple  (vmin, vmax) — fixes colormap range
+    elev,azim : float  3D view angles
+    figsize   : tuple
+    point_size: float  Scatter point size
+    ax        : matplotlib Axes3D or None
+    save      : str or None
+    """
+    n_nodes = len(nodes)
+    values  = _extract_field_from_result(result, component, n_nodes)
+
+    # node coordinates
+    coords = np.array([n.coordinates for n in nodes], dtype=float)
+    if len(coords[0]) == 2:
+        z_col = np.zeros((n_nodes, 1))
+        coords = np.hstack([coords, z_col])
+
+    # deformed shape
+    if deformed and result.u is not None:
+        node_map_idx = {n.name: i for i, n in enumerate(nodes)}
+        for i, node in enumerate(nodes):
+            dof = node.idx
+            nd  = min(len(dof), 3)
+            coords[i, :nd] += sfac * result.u[dof[:nd]]
+
+    vmin = limit[0] if limit is not None else values.min()
+    vmax = limit[1] if limit is not None else values.max()
+
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+        ax  = fig.add_subplot(111, projection='3d')
+    else:
+        fig = ax.get_figure()
+
+    ax.view_init(elev=elev, azim=azim)
+
+    sc = ax.scatter(coords[:, 0], coords[:, 1], coords[:, 2],
+                    c=values, cmap=cmap, vmin=vmin, vmax=vmax,
+                    s=point_size, depthshade=True)
+
+    plt.colorbar(sc, ax=ax, label=component, shrink=0.5, pad=0.1)
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    deformed_str = f'  |  deformed x{sfac}' if deformed else ''
+    ax.set_title(f'{component}{deformed_str}')
+
+    if save:
+        _save_figure(fig, save)
+
+    plt.show()

@@ -1,11 +1,9 @@
-"""FEM Elements Module"""
-
+"""FEM Elements — CST, LST, Quad4, Quad9, Truss2D, Frame2D."""
 from .CST import CST
 from .LST import LST
-from .Truss2D import Truss2D
-from .Frame2D import Frame2D
 from .Quad4 import Quad4
 from .Quad9 import Quad9
-# from .Quad2D import Quad2D
+from .Truss2D import Truss2D
+from .Frame2D import Frame2D
 
-__all__ = ['CST', 'LST', 'Truss2D', 'Frame2D', 'Quad4', 'Quad9']
+__all__ = ['CST', 'LST', 'Quad4', 'Quad9', 'Truss2D', 'Frame2D']

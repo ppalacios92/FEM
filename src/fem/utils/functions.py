@@ -136,6 +136,26 @@ def _filter_kwargs(element_class: type, kwargs: dict) -> dict:
     return {k: v for k, v in kwargs.items() if k in valid_params}
 
 
+def _direction_to_vector(direction, nDoF: int) -> np.ndarray:
+    """Convert direction string or angle to unit vector."""
+    if nDoF >= 3:
+        mapping = {
+            'x': [1,0,0], '-x': [-1,0,0],
+            'y': [0,1,0], '-y': [0,-1,0],
+            'z': [0,0,1], '-z': [0,0,-1],
+        }
+        if direction in mapping:
+            return np.array(mapping[direction], dtype=float)
+        rad = np.radians(float(direction))
+        return np.array([np.cos(rad), np.sin(rad), 0.0])
+    else:
+        mapping = {'x': 0., '-x': 180., 'y': 90., '-y': 270.}
+        angle   = mapping[direction] if direction in mapping else float(direction)
+        rad     = np.radians(angle)
+        return np.array([np.cos(rad), np.sin(rad)])
+
+
+
 def _build_loaded_edges(mesh, load_dictionary: dict) -> dict:
     """
     Pre-process the load_dictionary to build a lookup of loaded edges.
@@ -167,9 +187,8 @@ def _build_loaded_edges(mesh, load_dictionary: dict) -> dict:
             continue
 
         load_value = load_spec['value']
-        from fem.utils.gmshtools import GMSHtools
         nDoF = globalParameters['nDoF']
-        d = GMSHtools._direction_to_vector(load_spec['direction'], nDoF)
+        d = _direction_to_vector(load_spec['direction'], nDoF)
         q          = load_value * d
 
         if dim == 1:

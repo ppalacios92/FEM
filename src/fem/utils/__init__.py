@@ -16,6 +16,7 @@ from .visualization import (
     compute_nodal_average,
     results2gmsh,
     opensees2gmsh,
+    animate_nodal_view,
 )
 from .plotting import (
     plot_mesh,
@@ -24,6 +25,7 @@ from .plotting import (
     plot_loads_2d,
     plot_gmsh_mesh,
 )
+
 __all__ = [
     # Matrix utilities
     'matrix_extract',
@@ -42,6 +44,7 @@ __all__ = [
     'compute_nodal_average',
     'results2gmsh',
     'opensees2gmsh',
+    'animate_nodal_view',
     # Plotting
     'plot_mesh',
     'plot_field_2d',
