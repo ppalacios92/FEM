@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fem"
-version = "0.1.0"
+version = "1.2.0"
 description = "A Python library for structural analysis using the Finite Element Method"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -26,6 +26,7 @@ dependencies = [
     "sympy",
     "matplotlib",
     "gmsh",
+    "h5py",
     "ipywidgets",
     "jupyter"
 ]
@@ -39,7 +40,15 @@ Repository = "https://github.com/ppalacios92/FEM"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["fem", "fem.core", "fem.elements", "fem.sections", "fem.utils"]
+packages = [
+    "fem",
+    "fem.core",
+    "fem.elements",
+    "fem.model",
+    "fem.sections",
+    "fem.utils",
+    "fem.validation",
+]
 
 [tool.setuptools.package-data]
 fem = ["py.typed"]
