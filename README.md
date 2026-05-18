@@ -521,3 +521,8 @@ A collection of problems solved with this library.
 
 | <img src="docs/images/200.png" width="300"/> | <img src="docs/images/201.png" width="300"/> |
 |:---:|:---:|
+
+## Coupled Walls
+
+| <img src="docs/images/300.png" width="300"/> | <img src="docs/images/301.png" width="300"/> | <img src="docs/images/302.png" width="300"/> | <img src="docs/images/303.png" width="300"/> |
+|:---:|:---:|:---:|:---:|

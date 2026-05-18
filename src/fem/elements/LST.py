@@ -344,27 +344,44 @@ class LST:
         Returns:
             Ke (np.ndarray): Stiffness matrix (12×12).
         """
-        from scipy.special import roots_legendre
-        roots, weights = roots_legendre(self.sampling_points)
+        # from scipy.special import roots_legendre
+        # roots, weights = roots_legendre(self.sampling_points)
 
-        # Map 1D Gauss points from [-1,1] to [0,1]
-        xi_pts = 0.5 * (roots + 1.0)
-        xi_wts = 0.5 * weights
+        # # Map 1D Gauss points from [-1,1] to [0,1]
+        # xi_pts = 0.5 * (roots + 1.0)
+        # xi_wts = 0.5 * weights
+
+        # t  = self.thickness
+        # Ke = np.zeros((12, 12))
+
+        # for z_hat, w_z in zip(xi_pts, xi_wts):
+        #     for e_hat, w_e in zip(xi_pts, xi_wts):
+        #         # Duffy map to triangular domain
+        #         zeta   = z_hat
+        #         eta    = e_hat * (1.0 - z_hat)
+        #         weight = w_z * w_e * (1.0 - z_hat)
+
+        #         B, _, J_det, _ = self.get_B_matrix(zeta, eta)
+        #         Ke += weight * t * J_det * (B.T @ self.C @ B)
+
+        # return Ke
+
+        # 3-point Hammer rule — exact for degree 2, no Duffy needed
+        gauss_pts = np.array([[1/6, 1/6],
+                              [2/3, 1/6],
+                              [1/6, 2/3]])
+        gauss_w   = np.array([1/6, 1/6, 1/6])
 
         t  = self.thickness
         Ke = np.zeros((12, 12))
 
-        for z_hat, w_z in zip(xi_pts, xi_wts):
-            for e_hat, w_e in zip(xi_pts, xi_wts):
-                # Duffy map to triangular domain
-                zeta   = z_hat
-                eta    = e_hat * (1.0 - z_hat)
-                weight = w_z * w_e * (1.0 - z_hat)
-
-                B, _, J_det, _ = self.get_B_matrix(zeta, eta)
-                Ke += weight * t * J_det * (B.T @ self.C @ B)
+        for (zeta, eta), w in zip(gauss_pts, gauss_w):
+            B, _, J_det, _ = self.get_B_matrix(zeta, eta)
+            Ke += w * t * J_det * (B.T @ self.C @ B)
 
         return Ke
+
+
 
     # ------------------------------------------------------------------
     # Body forces
@@ -382,29 +399,48 @@ class LST:
         Returns:
             fe (np.ndarray): Body force vector (12,). Zero if load_direction is [0,0].
         """
-        from scipy.special import roots_legendre
+        # from scipy.special import roots_legendre
+
+        # b     = np.array(self.load_direction, dtype=float).reshape(-1, 1)
+        # gamma = self.material.rho
+        # t     = self.thickness
+
+        # roots, weights = roots_legendre(self.sampling_points)
+        # xi_pts = 0.5 * (roots + 1.0)
+        # xi_wts = 0.5 * weights
+
+        # fe = np.zeros((12, 1))
+
+        # for z_hat, w_z in zip(xi_pts, xi_wts):
+        #     for e_hat, w_e in zip(xi_pts, xi_wts):
+        #         zeta   = z_hat
+        #         eta    = e_hat * (1.0 - z_hat)
+        #         weight = w_z * w_e * (1.0 - z_hat)
+
+        #         _, _, J_det, N = self.get_B_matrix(zeta, eta)
+        #         fe += weight * (N.T @ b) * J_det
+
+        # fe = fe * (t * gamma)
+        # return fe.flatten()
+
+        gauss_pts = np.array([[1/6, 1/6],
+                      [2/3, 1/6],
+                      [1/6, 2/3]])
+        gauss_w   = np.array([1/6, 1/6, 1/6])
 
         b     = np.array(self.load_direction, dtype=float).reshape(-1, 1)
         gamma = self.material.rho
         t     = self.thickness
+        fe    = np.zeros((12, 1))
 
-        roots, weights = roots_legendre(self.sampling_points)
-        xi_pts = 0.5 * (roots + 1.0)
-        xi_wts = 0.5 * weights
-
-        fe = np.zeros((12, 1))
-
-        for z_hat, w_z in zip(xi_pts, xi_wts):
-            for e_hat, w_e in zip(xi_pts, xi_wts):
-                zeta   = z_hat
-                eta    = e_hat * (1.0 - z_hat)
-                weight = w_z * w_e * (1.0 - z_hat)
-
-                _, _, J_det, N = self.get_B_matrix(zeta, eta)
-                fe += weight * (N.T @ b) * J_det
+        for (zeta, eta), w in zip(gauss_pts, gauss_w):
+            _, _, J_det, N = self.get_B_matrix(zeta, eta)
+            fe += w * (N.T @ b) * J_det
 
         fe = fe * (t * gamma)
         return fe.flatten()
+
+
 
     # ------------------------------------------------------------------
     # Surface (traction) forces
